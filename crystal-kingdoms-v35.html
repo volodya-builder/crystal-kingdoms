@@ -713,7 +713,7 @@ function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.cr
   if(maxx<minx)return c;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
 ["rock","rock1","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 // полоса-переход вдоль ребра острова: верх картинки (трава/песок) — внутрь, прозрачный край — наружу
-function edgeStrip(g,img,P0,P1,inset,outset,alpha,cen){
+function edgeStrip(g,img,P0,P1,inset,outset,alpha,cen,clipInward){
   if(!img||img.complete===false)return;
   const ov=70,ddx=P1[0]-P0[0],ddy=P1[1]-P0[1],LL=Math.hypot(ddx,ddy)||1,ux=ddx/LL,uy=ddy/LL;
   const A=[P0[0]-ux*ov,P0[1]-uy*ov],B=[P1[0]+ux*ov,P1[1]+uy*ov];        // выходим за углы — заполним до митры
@@ -733,6 +733,13 @@ function edgeStrip(g,img,P0,P1,inset,outset,alpha,cen){
       g.lineTo(Q[0]+dr[0]*BIG+nlx*s*BIG,Q[1]+dr[1]*BIG+nly*s*BIG);
       g.closePath();g.clip();};
     half(P0);half(P1);
+  }
+  if(clipInward!=null){ // обрезаем всё, что глубже clipInward внутрь от ребра — игровые клетки остаются чистыми
+    const BIG=1e5,Lp=[P0[0]-nx*clipInward,P0[1]-ny*clipInward];
+    g.beginPath();
+    g.moveTo(Lp[0]+ux*BIG,Lp[1]+uy*BIG);g.lineTo(Lp[0]-ux*BIG,Lp[1]-uy*BIG);
+    g.lineTo(Lp[0]-ux*BIG+nx*BIG,Lp[1]-uy*BIG+ny*BIG);g.lineTo(Lp[0]+ux*BIG+nx*BIG,Lp[1]+uy*BIG+ny*BIG);
+    g.closePath();g.clip();
   }
   if(alpha!=null)g.globalAlpha=alpha;g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
 }
@@ -759,8 +766,8 @@ function bakeGround(){
   const Bc=[bi(-m,-m),bi(GRID+m,-m),bi(GRID+m,GRID+m),bi(-m,GRID+m)];   // углы пляжа
   const Gc=[bi(0,0),bi(GRID,0),bi(GRID,GRID),bi(0,GRID)];               // углы травяного острова
   const cen=bi(GRID/2,GRID/2);                                          // центр острова — для митры углов
-  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5,cen);// песок → вода (мягкая полупрозрачная пена)
-  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],4,56,1,cen);// трава → песок (внутрь почти не заходит — клетки чистые)
+  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],54,44,0.45,cen);// песок → вода (мягкая полупрозрачная пена, ровнее в углах)
+  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52,1,cen,3);// трава → песок (натуральный край, но клетки чистые — обрезка внутрь 3px)
   // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
 }
@@ -945,7 +952,7 @@ function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),i
     const blit=()=>{if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,dx,dy,W,H);ctx.restore();}else ctx.drawImage(img,dx,dy,W,H);};
     if(o===hoverObj&&o.type==="lighthouse"){ctx.save();ctx.shadowColor="rgba(255,225,110,.9)";ctx.shadowBlur=15*ZOOM;blit();blit();ctx.restore();} // контур-свечение у маяка
     blit();
-    if(o===hoverObj&&o.type!=="lighthouse"){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter";blit();ctx.restore();} // очень лёгкая подсветка
+    if(o===hoverObj&&o.type!=="lighthouse"&&!(o.beach||OB[o.type].beach)){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter";blit();ctx.restore();} // лёгкая подсветка только для объектов на траве (пляжные не выделяем)
   }}
 function drawBuilding(b){
   drawPlot(b);
