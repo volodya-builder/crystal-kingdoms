@@ -309,7 +309,7 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
 <script>
 var GAME_SRC="crystal-kingdoms-v35.html"; // держи этот файл рядом с index.html
 function openGame(){var ov=document.getElementById("gameOverlay"),fr=document.getElementById("gameFrame");
-  if(fr.getAttribute("data-loaded")!=="1"){fr.src=GAME_SRC;fr.setAttribute("data-loaded","1");}
+  if(fr.getAttribute("data-loaded")!=="1"){fr.src=GAME_SRC+"?t="+Date.now();fr.setAttribute("data-loaded","1");}
   ov.classList.add("on");document.body.style.overflow="hidden";}
 function closeGame(){document.getElementById("gameOverlay").classList.remove("on");document.body.style.overflow="";}
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeGame();});
