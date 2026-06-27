@@ -134,6 +134,10 @@
   #floatBar{position:absolute;display:none;gap:6px;z-index:8}
   #floatBar.show{display:flex}
   #floatBar button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:rgba(14,28,60,.92);color:#fff;font-size:18px;cursor:pointer}
+  #fRot,#fMove,#fDel{border:none;background:transparent;font-size:0;background-size:contain;background-repeat:no-repeat;background-position:center}
+  #fRot{background-image:url('assets/ic_rotate.png')}
+  #fMove{background-image:url('assets/ic_move.png')}
+  #fDel{background-image:url('assets/ic_delete.png')}
   #adminBtn{position:absolute;right:10px;top:10px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(14,28,60,.85);color:var(--muted);cursor:pointer;font-size:15px}
   #adminPanel{position:absolute;right:10px;top:52px;width:230px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px;display:none;z-index:10}
   #adminPanel.show{display:block}
@@ -211,6 +215,24 @@
   .vl-row .vl-n{font-weight:700;color:var(--ink)}
   .vl-row .vl-m{font-size:12px;color:var(--muted);margin-left:auto}
   .vl-row .vl-go{padding:8px 14px;font-size:13px}
+  /* окно подтверждения удаления */
+  #obDialog{position:fixed;inset:0;background:rgba(4,9,20,.78);z-index:130;display:none;align-items:center;justify-content:center}
+  #obDialog.show{display:flex}
+  .ob-box{width:min(430px,92vw);background:linear-gradient(180deg,#16315e,#0c1d3c);border:2px solid #caa24a;border-radius:16px;box-shadow:0 14px 44px rgba(0,0,0,.6);overflow:hidden}
+  .ob-top{position:relative;text-align:center;font-size:18px;font-weight:800;color:#ffe6a8;letter-spacing:.5px;padding:13px;border-bottom:1px solid #2a4a86;background:linear-gradient(180deg,#1d3f74,#13315c)}
+  .ob-x{position:absolute;right:8px;top:7px;width:30px;height:30px;border-radius:8px;background:#3a2030;border:1px solid #c55;color:#fff;cursor:pointer;font-size:14px}
+  .ob-mid{display:flex;gap:14px;padding:16px}
+  .ob-ic{width:100px;height:100px;flex:0 0 auto;border:2px solid #caa24a;border-radius:12px;background:#0a1830;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .ob-ic img{max-width:90px;max-height:90px}
+  .ob-info{flex:1;min-width:0}
+  .ob-name{font-size:17px;font-weight:800;color:#bfe0ff;margin-bottom:4px}
+  .ob-sub{font-size:12px;color:var(--muted);margin-bottom:9px}
+  .ob-cost{font-size:14px;color:var(--ice);font-weight:800;display:flex;align-items:center;gap:6px}
+  .ob-warn{font-size:11px;color:var(--dim);margin-top:9px}
+  .ob-btns{display:flex;gap:10px;padding:0 16px 16px}
+  .ob-btns button{flex:1;padding:12px;font-size:15px;font-weight:800;border-radius:10px;cursor:pointer;color:#fff}
+  .ob-cancel{background:linear-gradient(180deg,#1d6fd0,#1551a0);border:1px solid #3f8fe0}
+  .ob-ok{background:linear-gradient(180deg,#d8443a,#a82a22);border:1px solid #ff7a6a}
 </style>
 
 <div id="wrap">
@@ -262,6 +284,7 @@
 </div>
 <div id="catalog"></div>
 <div id="visitList"></div>
+<div id="obDialog"></div>
 
 <script>
 "use strict";
@@ -540,11 +563,22 @@ function obstacleAtScreen(sx,sy){if(!S.obstacles)return null;
     let lx=Math.floor((sx-left)/W*iw);if(o.flip)lx=iw-1-lx;const ly=Math.floor((sy-top)/H*ih);
     try{const px=cv.getContext("2d").getImageData(lx,ly,1,1).data;if(px[3]>20)return o;}catch(e){return o;}}
   return null;}
+function closeObDialog(){document.getElementById("obDialog").classList.remove("show");}
 function removeObstaclePrompt(o){const ob=OB[o.type],inf=S.admin&&S.admin.infRes;
-  if(!inf&&S.ice<ob.cost){toast("Нужно "+ob.cost+" Gold, чтобы убрать");return;}
-  if(confirm("Убрать «"+ob.name+"» за "+ob.cost+" Gold?")){
-    if(!inf)S.ice-=ob.cost;
-    S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Убрано");}}
+  const cvi=decoCv[ob.img],icon=(cvi&&cvi.toDataURL)?cvi.toDataURL():(typeof ICN!=="undefined"?ICN[o.type]:"")||"";
+  const el=document.getElementById("obDialog");
+  el.innerHTML='<div class="ob-box"><div class="ob-top">Удалить объект?<button class="ob-x" id="obX">✕</button></div>'+
+    '<div class="ob-mid"><div class="ob-ic">'+(icon?'<img src="'+icon+'">':'')+'</div>'+
+    '<div class="ob-info"><div class="ob-name">'+ob.name+'</div><div class="ob-sub">Убрать этот объект, чтобы освободить место?</div>'+
+    '<div class="ob-cost"><span class="dot ice"></span> Стоимость удаления: '+fmt(ob.cost)+' Gold</div>'+
+    '<div class="ob-warn">⚠ Действие нельзя отменить.</div></div></div>'+
+    '<div class="ob-btns"><button class="ob-cancel" id="obCancel">Отмена</button><button class="ob-ok" id="obOk">Удалить</button></div></div>';
+  el.classList.add("show");
+  document.getElementById("obX").onclick=closeObDialog;
+  document.getElementById("obCancel").onclick=closeObDialog;
+  document.getElementById("obOk").onclick=function(){
+    if(!inf&&S.ice<ob.cost){toast("Не хватает Gold ("+fmt(ob.cost)+")");return;}
+    if(!inf)S.ice-=ob.cost;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();closeObDialog();toast("Убрано");};}
 function occupied(gx,gy,ig){for(const b of S.buildings){if(b===ig)continue;const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s)return true;}
   if(S.obstacles)for(const o of S.obstacles){const s=OB[o.type].size;if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s)return true;}
@@ -1615,7 +1649,12 @@ function buildAllMax(){
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
-window.addEventListener("keydown",e=>{if(e.key==="Escape"){if(catEl.classList.contains("show")){closeCatalog();return;}buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
+window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+  const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList");
+  if(ob&&ob.classList.contains("show")){closeObDialog();return;}
+  if(vl&&vl.classList.contains("show")){vl.classList.remove("show");return;}
+  if(catEl.classList.contains("show")){closeCatalog();return;}
+  buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
 
 /* ===== СТАРТ ===== */
 let ICN={};
