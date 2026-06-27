@@ -865,10 +865,10 @@ for(const k in SPRITE_FILES){const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy
 const pumpBeam={img:null,ready:false};
 (function(){const im=new Image();im.onload=function(){try{pumpBeam.img=keyOutWhite(im);}catch(e){pumpBeam.img=im;}pumpBeam.ready=true;};im.onerror=function(){pumpBeam.ready=false;};im.src="assets/stonepump_beam.png";})();
 // настройки качания (подбираются на глаз под арт):
-const PUMP={amp:0.14,speed:1.8,   // amp — размах качания (рад), speed — скорость
-  pivX:0.02,pivY:-0.26,           // ось качания относительно ЦЕНТРА спрайта (доли W и H; pivY<0 — выше центра)
-  bScale:0.66,                    // ширина балки относительно ширины футпринта
-  bpX:0.50,bpY:0.34};             // точка опоры ВНУТРИ картинки балки (доли её ширины/высоты)
+const PUMP={amp:0.11,speed:1.7,   // amp — размах качания (рад), speed — скорость
+  pivX:0.00,pivY:-0.40,           // ось качания относительно ЦЕНТРА спрайта (доли W и H; pivY<0 — выше центра)
+  bScale:0.90,                    // ширина балки относительно ширины футпринта
+  bpX:0.50,bpY:0.40};             // точка опоры ВНУТРИ картинки балки (доли её ширины/высоты)
 function drawPumpBeam(b,cen,W,H,bottomY){
   if(!pumpBeam.ready||!pumpBeam.img)return;
   const im=pumpBeam.img,bw=W*PUMP.bScale,bh=bw*((im.height||im.naturalHeight)/(im.width||im.naturalWidth));
