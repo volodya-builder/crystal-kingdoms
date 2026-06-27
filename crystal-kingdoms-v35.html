@@ -496,7 +496,7 @@ function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
 // ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
 const BEACH_M=5.1; // ширина пляжа в клетках (увеличена)
-const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},rock1:{name:"Камень",size:1,cost:300,img:"rock1",sc:1.0},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
+const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},rock1:{name:"Камень",size:1,cost:300,img:"rock1",sc:0.5},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
   chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1,sc:0.95},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1,sc:0.95},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1,sc:0.6},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1,sc:1.1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1,sc:1.9},
   shells:{name:"Ракушки",size:1,cost:150,img:"shells",beach:1,sc:1.0},crystals:{name:"Кристаллы",size:1,cost:0,img:"crystals",beach:1,sc:1.1},anchor:{name:"Якорь",size:1,cost:200,img:"anchor",beach:1,sc:1.0},umbrella:{name:"Зонт",size:1,cost:200,img:"umbrella",beach:1,sc:1.15}};
 // пляжный декор — по одному экземпляру каждого, на песке (за краем острова)
@@ -1292,7 +1292,7 @@ function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гост
   const b=buildingAt(t[0],t[1]);
   if(b){sel=(b===sel)?null:b;renderSide();return;}
   const o=obstacleAt(t[0],t[1]);
-  if(o){if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else removeObstaclePrompt(o);return;}
+  if(o){if(o.type==="lighthouse")openVisitList();else if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else removeObstaclePrompt(o);return;}
   sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s){const z=b.gx+b.gy;if(z>fz){fz=z;found=b;}}}return found;}
