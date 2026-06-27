@@ -564,21 +564,29 @@ function obstacleAtScreen(sx,sy){if(!S.obstacles)return null;
     try{const px=cv.getContext("2d").getImageData(lx,ly,1,1).data;if(px[3]>20)return o;}catch(e){return o;}}
   return null;}
 function closeObDialog(){document.getElementById("obDialog").classList.remove("show");}
-function removeObstaclePrompt(o){const ob=OB[o.type],inf=S.admin&&S.admin.infRes;
-  const cvi=decoCv[ob.img],icon=(cvi&&cvi.toDataURL)?cvi.toDataURL():(typeof ICN!=="undefined"?ICN[o.type]:"")||"";
-  const el=document.getElementById("obDialog");
-  el.innerHTML='<div class="ob-box"><div class="ob-top">Удалить объект?<button class="ob-x" id="obX">✕</button></div>'+
-    '<div class="ob-mid"><div class="ob-ic">'+(icon?'<img src="'+icon+'">':'')+'</div>'+
-    '<div class="ob-info"><div class="ob-name">'+ob.name+'</div><div class="ob-sub">Убрать этот объект, чтобы освободить место?</div>'+
-    '<div class="ob-cost"><span class="dot ice"></span> Стоимость удаления: '+fmt(ob.cost)+' Gold</div>'+
-    '<div class="ob-warn">⚠ Действие нельзя отменить.</div></div></div>'+
-    '<div class="ob-btns"><button class="ob-cancel" id="obCancel">Отмена</button><button class="ob-ok" id="obOk">Удалить</button></div></div>';
+// единое окно подтверждения (для объектов и зданий)
+function showConfirmDialog(opt){const el=document.getElementById("obDialog");
+  el.innerHTML='<div class="ob-box"><div class="ob-top">'+opt.title+'<button class="ob-x" id="obX">✕</button></div>'+
+    '<div class="ob-mid"><div class="ob-ic">'+(opt.icon?'<img src="'+opt.icon+'">':'')+'</div>'+
+    '<div class="ob-info"><div class="ob-name">'+opt.name+'</div><div class="ob-sub">'+(opt.sub||"")+'</div>'+
+    '<div class="ob-cost">'+(opt.cost||"")+'</div><div class="ob-warn">⚠ Действие нельзя отменить.</div></div></div>'+
+    '<div class="ob-btns"><button class="ob-cancel" id="obCancel">Отмена</button><button class="ob-ok" id="obOk">'+(opt.ok||"Удалить")+'</button></div></div>';
   el.classList.add("show");
   document.getElementById("obX").onclick=closeObDialog;
   document.getElementById("obCancel").onclick=closeObDialog;
-  document.getElementById("obOk").onclick=function(){
-    if(!inf&&S.ice<ob.cost){toast("Не хватает Gold ("+fmt(ob.cost)+")");return;}
-    if(!inf)S.ice-=ob.cost;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();closeObDialog();toast("Убрано");};}
+  document.getElementById("obOk").onclick=opt.onOk;}
+function removeObstaclePrompt(o){const ob=OB[o.type],inf=S.admin&&S.admin.infRes;
+  const cvi=decoCv[ob.img],icon=(cvi&&cvi.toDataURL)?cvi.toDataURL():((typeof ICN!=="undefined"?ICN[o.type]:"")||"");
+  showConfirmDialog({title:"Удалить объект?",icon:icon,name:ob.name,sub:"Убрать этот объект, чтобы освободить место?",
+    cost:'<span class="dot ice"></span> Стоимость удаления: '+fmt(ob.cost)+' Gold',ok:"Удалить",
+    onOk:function(){if(!inf&&S.ice<ob.cost){toast("Не хватает Gold ("+fmt(ob.cost)+")");return;}
+      if(!inf)S.ice-=ob.cost;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();closeObDialog();toast("Убрано");}});}
+function confirmDemolish(b){if(b.type==="hq"){toast("HQ снести нельзя");return;}
+  const d=BT[b.type],lv=d.lv[b.level]||{},refund=Math.floor((lv.ice||0)*0.5);
+  const sp=SPRITES[b.type],icon=(sp&&sp.iconURL)?sp.iconURL:((typeof ICN!=="undefined"?ICN[b.type]:"")||"");
+  showConfirmDialog({title:"Снести здание?",icon:icon,name:d.name,sub:"Здание будет снесено, клетки освободятся.",
+    cost:'<span class="dot ice"></span> Вернётся: +'+fmt(refund)+' Gold',ok:"Снести",
+    onOk:function(){closeObDialog();deleteBuilding(b);}});}
 function occupied(gx,gy,ig){for(const b of S.buildings){if(b===ig)continue;const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s)return true;}
   if(S.obstacles)for(const o of S.obstacles){const s=OB[o.type].size;if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s)return true;}
@@ -887,9 +895,10 @@ function spriteFX(b,cx,topY,W,H){const T=ANIM,ph=b.gx*0.7+b.gy*0.5;
 function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),img=decoCv[OB[o.type].img],w=sz*TW*ZOOM,h=w*0.5;
   const shw=w*0.6,shh=shw*0.34;ctx.drawImage(softShadow,cen[0]-shw/2,cen[1]+h*0.05-shh/2,shw,shh);  // тень
   if(img){const iw=img.width||img.naturalWidth,ih=img.height||img.naturalHeight;
-    const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9;
-    if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
-    else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}}
+    const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9,dx=cen[0]-W/2,dy=bottomY-H;
+    if(o===hoverObj){ctx.save();ctx.shadowColor="rgba(255,225,110,.95)";ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.restore();} // контур-свечение
+    if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,dx,dy,W,H);ctx.restore();}
+    else ctx.drawImage(img,dx,dy,W,H);}}
 function drawBuilding(b){
   drawPlot(b);
   {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
@@ -989,7 +998,7 @@ function drawUnit(u){
 }
 
 /* ===== РЕНДЕР ===== */
-let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null;
+let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null,hoverObj=null;
 function render(){
   ctx.clearRect(0,0,VW,VH);drawGround();
   if(visit){
@@ -997,11 +1006,13 @@ function render(){
     const list=[...visit.buildings,...visit.obstacles].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
     for(const it of list){if(it.ob)drawObstacle(it);else drawBuilding(it);}
   }else if(mode==="build"||!war){
+    hoverObj=null;
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
     if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     else if(!moving&&hoverTile){
       const hb=buildingAt(hoverTile[0],hoverTile[1]);
       const ho=hb?null:((hoverPx&&obstacleAtScreen(hoverPx[0],hoverPx[1]))||obstacleAt(hoverTile[0],hoverTile[1]));
+      hoverObj=hb||ho;
       if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // все клетки здания
       else if(ho)drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size);       // все клетки препятствия/маяка
       else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
@@ -1358,7 +1369,7 @@ function positionFloatBar(){if(visit||mode!=="build"||!sel||moving){floatBar.cla
 document.getElementById("fRot").onclick=e=>{e.stopPropagation();if(sel){sel.flip=!sel.flip;save();toast(sel.flip?"Повёрнуто":"Исходный вид");}};
 document.getElementById("fUp").onclick=e=>{e.stopPropagation();if(sel)startUpgrade(sel);};
 document.getElementById("fMove").onclick=e=>{e.stopPropagation();if(sel&&sel.type!=="hq"){moving=sel;sel=null;toast("Тапни новое место");renderSide();}else toast("HQ не двигается");};
-document.getElementById("fDel").onclick=e=>{e.stopPropagation();if(sel)deleteBuilding(sel);};
+document.getElementById("fDel").onclick=e=>{e.stopPropagation();if(sel)confirmDemolish(sel);};
 
 /* ===== БОКОВАЯ ПАНЕЛЬ ===== */
 const side=document.getElementById("side");
@@ -1487,7 +1498,7 @@ function wireBuildingPanel(b){const q=id=>document.getElementById(id);
   if(q("upBtn"))q("upBtn").onclick=()=>startUpgrade(b);
   if(q("finBtn"))q("finBtn").onclick=()=>finishNow(b);
   if(q("moveBtn"))q("moveBtn").onclick=()=>{moving=b;sel=null;toast("Тапни новое место");renderSide();};
-  if(q("delBtn"))q("delBtn").onclick=()=>deleteBuilding(b);
+  if(q("delBtn"))q("delBtn").onclick=()=>confirmDemolish(b);
   side.querySelectorAll("[data-train]").forEach(el=>el.onclick=()=>{const t=el.getAttribute("data-train");S.selUnit=t;enqueueTroop(t);});
   side.querySelectorAll("[data-res]").forEach(el=>el.onclick=()=>startResearch(el.getAttribute("data-res")));
 }
