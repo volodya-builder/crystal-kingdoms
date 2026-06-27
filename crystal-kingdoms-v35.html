@@ -530,6 +530,16 @@ function genObstacles(){const obs=[];
   return obs;}
 function obstacleAt(gx,gy){if(!S.obstacles)return null;let f=null,fz=-1;for(const o of S.obstacles){const s=OB[o.type].size;
   if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s){const z=o.gx+o.gy;if(z>fz){fz=z;f=o;}}}return f;}
+// клик по всему видимому спрайту объекта (а не только по нижней клетке)
+function obstacleAtScreen(sx,sy){if(!S.obstacles)return null;
+  const arr=[...S.obstacles].sort((a,b)=>(b.gx+b.gy)-(a.gx+a.gy)); // передние (ближние) первыми
+  for(const o of arr){const cv=decoCv[OB[o.type].img];if(!cv)continue;const sz=OB[o.type].size;
+    const cen=iso(o.gx+sz/2,o.gy+sz/2),w=sz*TW*ZOOM,iw=cv.width||cv.naturalWidth,ih=cv.height||cv.naturalHeight;
+    const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9,left=cen[0]-W/2,top=bottomY-H;
+    if(sx<left||sx>left+W||sy<top||sy>bottomY)continue;
+    let lx=Math.floor((sx-left)/W*iw);if(o.flip)lx=iw-1-lx;const ly=Math.floor((sy-top)/H*ih);
+    try{const px=cv.getContext("2d").getImageData(lx,ly,1,1).data;if(px[3]>20)return o;}catch(e){return o;}}
+  return null;}
 function removeObstaclePrompt(o){const ob=OB[o.type],inf=S.admin&&S.admin.infRes;
   if(!inf&&S.ice<ob.cost){toast("Нужно "+ob.cost+" Gold, чтобы убрать");return;}
   if(confirm("Убрать «"+ob.name+"» за "+ob.cost+" Gold?")){
@@ -945,7 +955,7 @@ function drawUnit(u){
 }
 
 /* ===== РЕНДЕР ===== */
-let mode="build",mouseTile=null,hoverTile=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null;
+let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null;
 function render(){
   ctx.clearRect(0,0,VW,VH);drawGround();
   if(visit){
@@ -956,7 +966,8 @@ function render(){
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
     if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     else if(!moving&&hoverTile){
-      const hb=buildingAt(hoverTile[0],hoverTile[1]),ho=hb?null:obstacleAt(hoverTile[0],hoverTile[1]);
+      const hb=buildingAt(hoverTile[0],hoverTile[1]);
+      const ho=hb?null:((hoverPx&&obstacleAtScreen(hoverPx[0],hoverPx[1]))||obstacleAt(hoverTile[0],hoverTile[1]));
       if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // все клетки здания
       else if(ho)drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size);       // все клетки препятствия/маяка
       else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
@@ -1280,8 +1291,8 @@ function endPointer(e){const had=pointers.has(e.pointerId);pointers.delete(e.poi
   if(tapStart&&dragInfo&&!dragInfo.moved&&(performance.now()-tapStart.t)<400)handleTap(tapStart.x,tapStart.y);
   dragInfo=null;tapStart=null;}
 cv.addEventListener("pointerup",endPointer);cv.addEventListener("pointercancel",endPointer);
-cv.addEventListener("mousemove",e=>{const p=evtPos(e);hoverTile=unIso(p[0],p[1]);});
-cv.addEventListener("mouseleave",()=>{hoverTile=null;});
+cv.addEventListener("mousemove",e=>{const p=evtPos(e);hoverTile=unIso(p[0],p[1]);hoverPx=p;});
+cv.addEventListener("mouseleave",()=>{hoverTile=null;hoverPx=null;});
 cv.addEventListener("wheel",e=>{e.preventDefault();const p=evtPos(e);zoomAt(p[0],p[1],e.deltaY<0?1.12:1/1.12);},{passive:false});
 function zoomAt(sx,sy,factor){const before=unIso(sx,sy);ZOOM=Math.max(ZMIN,Math.min(ZMAX,ZOOM*factor));recalcCam();
   const[bx,by]=iso(before[0],before[1]);panX+=sx-bx;panY+=sy-by;recalcCam();}
@@ -1296,7 +1307,7 @@ function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гост
     if(countType(buildSel)>=limitFor(buildSel))buildSel=null;return;}
   const b=buildingAt(t[0],t[1]);
   if(b){sel=(b===sel)?null:b;renderSide();return;}
-  const o=obstacleAt(t[0],t[1]);
+  const o=obstacleAtScreen(sx,sy)||obstacleAt(t[0],t[1]);
   if(o){if(o.type==="lighthouse")openVisitList();else if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else removeObstaclePrompt(o);return;}
   sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
