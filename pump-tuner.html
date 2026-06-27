@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Настройщик качалки</title>
+<style>
+  html,body{margin:0;height:100%;background:#0c1730;color:#eaf3ff;font-family:Segoe UI,system-ui,Arial}
+  .wrap{display:flex;height:100%}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;
+    background:repeating-conic-gradient(#3a7d2c 0% 25%,#347326 0% 50%) 50%/64px 64px}
+  canvas{filter:drop-shadow(0 8px 16px rgba(0,0,0,.4))}
+  .panel{width:320px;background:#0a1228;border-left:1px solid #20335f;padding:16px;overflow:auto}
+  h2{margin:0 0 4px;font-size:16px}
+  .hint{font-size:12px;color:#8fa6c8;margin-bottom:14px;line-height:1.4}
+  .row{margin:12px 0}
+  .row label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+  .row label b{color:#ffce5c}
+  input[type=range]{width:100%}
+  .out{margin-top:16px;background:#06101f;border:1px solid #20335f;border-radius:8px;padding:10px;font-size:12px;
+    font-family:Consolas,monospace;color:#bfe3ff;white-space:pre-wrap;user-select:all}
+  button{margin-top:10px;width:100%;padding:9px;border:none;border-radius:8px;background:#2f63b8;color:#fff;font-weight:700;cursor:pointer}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="stage"><canvas id="cv" width="520" height="520"></canvas></div>
+  <div class="panel">
+    <h2>⚙️ Настройка качалки</h2>
+    <div class="hint">Двигай ползунки, пока балка не встанет ровно на вышку и не будет «съезжать» при качании. Потом нажми «Скопировать» и пришли мне числа.</div>
+    <div class="row"><label>Ось — X (pivX) <b id="vpivX"></b></label><input id="pivX" type="range" min="-0.4" max="0.4" step="0.005" value="0"></div>
+    <div class="row"><label>Ось — Y (pivY) <b id="vpivY"></b></label><input id="pivY" type="range" min="-0.7" max="0.1" step="0.005" value="-0.40"></div>
+    <div class="row"><label>Размер балки (bScale) <b id="vbScale"></b></label><input id="bScale" type="range" min="0.4" max="1.3" step="0.01" value="0.90"></div>
+    <div class="row"><label>Опора в балке — X (bpX) <b id="vbpX"></b></label><input id="bpX" type="range" min="0.2" max="0.85" step="0.005" value="0.50"></div>
+    <div class="row"><label>Опора в балке — Y (bpY) <b id="vbpY"></b></label><input id="bpY" type="range" min="0.0" max="0.9" step="0.005" value="0.40"></div>
+    <div class="row"><label>Размах (amp) <b id="vamp"></b></label><input id="amp" type="range" min="0" max="0.3" step="0.005" value="0.11"></div>
+    <div class="row"><label>Скорость (speed) <b id="vspeed"></b></label><input id="speed" type="range" min="0.5" max="3.5" step="0.1" value="1.7"></div>
+    <div class="out" id="out"></div>
+    <button id="copy">📋 Скопировать числа</button>
+  </div>
+</div>
+<script>
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const base=new Image(); base.src="assets/stonepump.png";
+const beam=new Image(); beam.src="assets/stonepump_beam.png";
+const ids=["pivX","pivY","bScale","bpX","bpY","amp","speed"];
+const P={}; ids.forEach(id=>{const el=document.getElementById(id);
+  P[id]=parseFloat(el.value);
+  el.oninput=()=>{P[id]=parseFloat(el.value);upd();};});
+function upd(){ids.forEach(id=>document.getElementById("v"+id).textContent=P[id].toFixed(3));
+  document.getElementById("out").textContent=
+`const PUMP={amp:${P.amp.toFixed(3)},speed:${P.speed.toFixed(2)},
+  pivX:${P.pivX.toFixed(3)},pivY:${P.pivY.toFixed(3)},
+  bScale:${P.bScale.toFixed(2)},
+  bpX:${P.bpX.toFixed(3)},bpY:${P.bpY.toFixed(3)}};`;}
+document.getElementById("copy").onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(document.getElementById("out").textContent);};
+upd();
+let t=0;
+function frame(){t+=0.016;ctx.clearRect(0,0,520,520);
+  if(base.complete&&base.naturalWidth){
+    // база: рисуем по центру, как в игре (ширина W, низ на земле)
+    const W=360, H=W*(base.naturalHeight/base.naturalWidth);
+    const cx=260, bottomY=300+H*0.5; // условный центр сцены
+    const topY=bottomY-H;
+    ctx.drawImage(base,cx-W/2,topY,W,H);
+    if(beam.complete&&beam.naturalWidth){
+      const bw=W*P.bScale, bh=bw*(beam.naturalHeight/beam.naturalWidth);
+      const pvx=cx+P.pivX*W, pvy=(bottomY-H/2)+P.pivY*H;
+      const ang=Math.sin(t*P.speed)*P.amp;
+      // метка оси
+      ctx.save();ctx.translate(pvx,pvy);ctx.rotate(ang);
+      ctx.drawImage(beam,-P.bpX*bw,-P.bpY*bh,bw,bh);ctx.restore();
+      ctx.fillStyle="rgba(255,80,80,.9)";ctx.beginPath();ctx.arc(pvx,pvy,4,0,7);ctx.fill();
+    }
+  }
+  requestAnimationFrame(frame);}
+frame();
+</script>
+</body></html>
