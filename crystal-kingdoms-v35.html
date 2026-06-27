@@ -401,7 +401,8 @@ function load(){
       if(S.research===undefined)S.research=null;
       offlineCatchup();}
   }catch(e){S=freshState();}
-  if(!S.obstacles)S.obstacles=genObstacles();   // препятствия на острове
+  if(!S.obstacles)S.obstacles=genObstacles().concat(genBeachDecor());   // препятствия + пляжный декор
+  else if(!S.obstacles.some(o=>o.beach))S.obstacles=S.obstacles.concat(genBeachDecor()); // дозалить пляж в старые сейвы
 }
 let lastSave=0;
 function maybeSave(now){if(now-lastSave>4000){lastSave=now;save();}}
@@ -440,7 +441,20 @@ function buildersUsed(){let n=0;for(const b of S.buildings)if(!b.built)n++;retur
 function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
 // ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
-const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock"},palm:{name:"Пальма",size:1,cost:400,img:"palm"},bush:{name:"Куст",size:1,cost:200,img:"bush"}};
+const BEACH_M=5.1; // ширина пляжа в клетках (увеличена)
+const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock"},palm:{name:"Пальма",size:1,cost:400,img:"palm"},bush:{name:"Куст",size:1,cost:200,img:"bush"},
+  chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1}};
+// пляжный декор — объекты на песке (за краем острова)
+function genBeachDecor(){const d=[],items=["chest","boat","crates","dock"],M=BEACH_M;
+  const free=(gx,gy,sz)=>{for(const o of d){const os=OB[o.type].size;if(gx<o.gx+os+1&&gx+sz+1>o.gx&&gy<o.gy+os+1&&gy+sz+1>o.gy)return false;}return true;};
+  for(let n=0;n<10;n++){const t=items[n%items.length],sz=OB[t].size;
+    for(let k=0;k<40;k++){const gx=Math.round(-M+0.5+Math.random()*(GRID+2*M-2)),gy=Math.round(-M+0.5+Math.random()*(GRID+2*M-2));
+      if(gx+sz>0&&gx<GRID&&gy+sz>0&&gy<GRID)continue;                 // не в траве
+      if(gx<-M||gy<-M||gx+sz>GRID+M||gy+sz>GRID+M)continue;           // в пределах пляжа
+      if(free(gx,gy,sz)){d.push({ob:true,beach:true,type:t,gx,gy});break;}}}
+  return d;}
+function openChest(o){if(confirm("Открыть сундук? (+5000 Gold, +5 Ruby)")){
+    const c=caps();S.ice=Math.min(c.ice,S.ice+5000);S.gem+=5;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Сундук открыт: +5000 Gold, +5 Ruby");}}
 function genObstacles(){const obs=[];
   const free=(gx,gy,sz)=>{if(gx<1||gy<1||gx+sz>GRID-1||gy+sz>GRID-1)return false;
     for(const b of S.buildings){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+sz>b.gx&&gy<b.gy+bs&&gy+sz>b.gy)return false;}
@@ -553,7 +567,7 @@ function cropToContent(img){const w=img.naturalWidth,h=img.naturalHeight,c=docum
   let d;try{d=g.getImageData(0,0,w,h).data;}catch(e){return img;}
   let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
   if(maxx<minx)return img;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
-["rock","bush","palm"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}bakeGround();};im.src="assets/"+k+".png";});
+["rock","bush","palm","chest","boat","crates","dock"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
@@ -562,7 +576,7 @@ function bakeGround(){
   const dia=p=>{g.beginPath();g.moveTo(p[0][0],p[0][1]);for(let i=1;i<4;i++)g.lineTo(p[i][0],p[i][1]);g.closePath();};
   // воду рисует CSS-фон холста (на весь экран) — в запекании только остров
   // ПЛЯЖ + пена (в 2 раза шире)
-  const m=3.4,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>bi(p[0],p[1]));
+  const m=BEACH_M,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>bi(p[0],p[1]));
   g.fillStyle="rgba(255,255,255,.45)";dia(beach.map(p=>[p[0],p[1]+5]));g.fill();
   g.save();dia(beach);g.clip();
   if(sandImg.complete&&sandImg.naturalWidth){const p=g.createPattern(sandImg,"repeat");try{p.setTransform(new DOMMatrix().scaleSelf(6*TW/sandImg.naturalWidth));}catch(e){}g.fillStyle=p;}
@@ -1192,7 +1206,7 @@ function handleTap(sx,sy){const t=unIso(sx,sy);
   const b=buildingAt(t[0],t[1]);
   if(b){sel=(b===sel)?null:b;renderSide();return;}
   const o=obstacleAt(t[0],t[1]);
-  if(o){removeObstaclePrompt(o);return;}
+  if(o){if(o.type==="chest")openChest(o);else removeObstaclePrompt(o);return;}
   sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s){const z=b.gx+b.gy;if(z>fz){fz=z;found=b;}}}return found;}
@@ -1493,7 +1507,7 @@ function buildAllMax(){
   save();refreshTop();renderSide();toast("База отстроена: +"+added+" зданий, всё на максимуме");
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
-document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles();save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
+document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){if(catEl.classList.contains("show")){closeCatalog();return;}buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
 
 /* ===== СТАРТ ===== */
