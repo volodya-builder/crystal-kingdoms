@@ -197,6 +197,20 @@
   .cat-th .cost{font-size:12px;color:var(--ice);font-weight:800;margin-top:2px}
   .cat-th .cnt{position:absolute;top:6px;right:6px;background:rgba(8,18,40,.92);border:1px solid var(--line);border-radius:7px;font-size:10px;padding:1px 6px;color:var(--ok);font-weight:700}
   .cat-th .lk{position:absolute;top:6px;left:6px;font-size:13px}
+  /* визиты */
+  #visitOpen{position:absolute;left:14px;bottom:16px;z-index:9;background:linear-gradient(180deg,#2a8f5a,#1c6e44);border:1px solid #45c98a;color:#eaf3ff;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  #visitOpen:hover{filter:brightness(1.08)}
+  #visitBar{display:none;position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:12;align-items:center;gap:12px;background:rgba(14,28,60,.95);border:1px solid var(--good);border-radius:12px;padding:8px 14px;color:var(--ink);font-size:14px}
+  #visitBar .btn{padding:7px 14px;font-size:13px}
+  #visitList{position:fixed;inset:0;background:rgba(4,9,20,.9);z-index:120;display:none;align-items:center;justify-content:center}
+  #visitList.show{display:flex}
+  .vl-box{width:min(560px,92vw);max-height:80vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .vl-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);font-size:17px;color:var(--good)}
+  .vl-rows{overflow:auto;padding:8px}
+  .vl-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;background:var(--panel2)}
+  .vl-row .vl-n{font-weight:700;color:var(--ink)}
+  .vl-row .vl-m{font-size:12px;color:var(--muted);margin-left:auto}
+  .vl-row .vl-go{padding:8px 14px;font-size:13px}
 </style>
 
 <div id="wrap">
@@ -240,11 +254,14 @@
       </div>
       <div id="overlay"><div class="dialog" id="dialog"></div></div>
       <button id="catOpen">🏗 Построить</button>
+      <button id="visitOpen">🏝 Гости</button>
+      <div id="visitBar"><span>🏝 В гостях у <b id="visitName">—</b></span><button class="btn" id="visitHome">🏠 Домой</button></div>
     </div>
     <div id="side"></div>
   </div>
 </div>
 <div id="catalog"></div>
+<div id="visitList"></div>
 
 <script>
 "use strict";
@@ -386,7 +403,44 @@ function freshState(){
     admin:{infRes:false,instaBuild:false,instaArmy:false},
     lastTs:Date.now()};
 }
-function save(){try{S.lastTs=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
+function save(){try{S.lastTs=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}publishIsland(false);}
+/* ===== ОНЛАЙН-ВИЗИТЫ (Supabase) ===== */
+const SB_URL="https://wushnxfwmsgmummijzzy.supabase.co/rest/v1";
+const SB_KEY="sb_publishable_jCwr5baNK3ttGMRh7JBmNg_LXCkom77";
+const SB_H={apikey:SB_KEY,Authorization:"Bearer "+SB_KEY};
+let playerId=localStorage.getItem("ck_pid");
+if(!playerId){playerId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():("p"+Math.random().toString(36).slice(2)+Date.now());localStorage.setItem("ck_pid",playerId);}
+let visit=null,lastPublish=0;
+function islandSnapshot(){return {id:playerId,name:(S.name||"VALORION").slice(0,16),trophies:S.trophies||0,hq:S.hqLevel||1,
+  data:{b:S.buildings.filter(x=>x.built).map(b=>({t:b.type,x:b.gx,y:b.gy,l:b.level,f:b.flip?1:0})),
+        o:(S.obstacles||[]).map(o=>({t:o.type,x:o.gx,y:o.gy,f:o.flip?1:0,bc:o.beach?1:0}))},
+  updated_at:new Date().toISOString()};}
+function publishIsland(force){if(visit)return;const now=Date.now();if(!force&&now-lastPublish<15000)return;lastPublish=now;
+  try{fetch(SB_URL+"/islands",{method:"POST",headers:Object.assign({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},SB_H),body:JSON.stringify([islandSnapshot()])}).catch(()=>{});}catch(e){}}
+function openVisitList(){
+  fetch(SB_URL+"/islands?select=id,name,trophies,hq,updated_at&order=trophies.desc&limit=60",{headers:SB_H})
+    .then(r=>r.json()).then(rows=>showVisitList(Array.isArray(rows)?rows:[])).catch(()=>toast("Не удалось загрузить список"));}
+function visitIsland(id){
+  fetch(SB_URL+"/islands?id=eq."+encodeURIComponent(id)+"&select=*",{headers:SB_H})
+    .then(r=>r.json()).then(rows=>{const r=rows&&rows[0];if(!r){toast("Остров не найден");return;}const dat=r.data||{};
+      visit={name:r.name,trophies:r.trophies,
+        buildings:(dat.b||[]).map(b=>({type:b.t,gx:b.x,gy:b.y,level:b.l||1,built:true,flip:b.f?1:0})),
+        obstacles:(dat.o||[]).map(o=>({ob:true,type:o.t,gx:o.x,gy:o.y,flip:o.f?1:0,beach:o.bc?1:0}))};
+      sel=null;buildSel=null;moving=null;mode="build";closeCatalog();
+      document.getElementById("catOpen").style.display="none";
+      const vb=document.getElementById("visitBar");vb.style.display="flex";document.getElementById("visitName").textContent=(r.name||"Игрок");
+      document.getElementById("visitList").classList.remove("show");
+      ZOOM=0.6;panX=0;panY=0;recalcCam();renderSide();updHelp();
+    }).catch(()=>toast("Ошибка загрузки острова"));}
+function leaveVisit(){visit=null;document.getElementById("visitBar").style.display="none";document.getElementById("catOpen").style.display="";renderSide();updHelp();}
+function showVisitList(rows){const el=document.getElementById("visitList");
+  let h='<div class="vl-box"><div class="vl-top"><b>🏝 Острова игроков</b><button class="cat-x" id="vlClose">✕</button></div><div class="vl-rows">';
+  const others=rows.filter(r=>r.id!==playerId);
+  if(!others.length)h+='<div style="padding:14px;color:var(--muted)">Пока нет других островов. Загляни позже — список растёт, когда играют другие.</div>';
+  for(const r of others)h+='<div class="vl-row" data-vid="'+r.id+'"><span class="vl-n">'+(r.name||"Игрок")+'</span><span class="vl-m">HQ '+(r.hq||1)+' · 🏆 '+(r.trophies||0)+'</span><button class="btn go vl-go">В гости</button></div>';
+  h+='</div></div>';el.innerHTML=h;el.classList.add("show");
+  document.getElementById("vlClose").onclick=()=>el.classList.remove("show");
+  el.querySelectorAll("[data-vid]").forEach(row=>row.onclick=()=>visitIsland(row.getAttribute("data-vid")));}
 function load(){
   try{const raw=localStorage.getItem(SAVE_KEY);
     if(!raw){S=freshState();}
@@ -893,7 +947,11 @@ function drawUnit(u){
 let mode="build",mouseTile=null,hoverTile=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null;
 function render(){
   ctx.clearRect(0,0,VW,VH);drawGround();
-  if(mode==="build"||!war){
+  if(visit){
+    const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
+    const list=[...visit.buildings,...visit.obstacles].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
+    for(const it of list){if(it.ob)drawObstacle(it);else drawBuilding(it);}
+  }else if(mode==="build"||!war){
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
     if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     else if(!moving&&hoverTile){const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}
@@ -1221,7 +1279,7 @@ cv.addEventListener("mouseleave",()=>{hoverTile=null;});
 cv.addEventListener("wheel",e=>{e.preventDefault();const p=evtPos(e);zoomAt(p[0],p[1],e.deltaY<0?1.12:1/1.12);},{passive:false});
 function zoomAt(sx,sy,factor){const before=unIso(sx,sy);ZOOM=Math.max(ZMIN,Math.min(ZMAX,ZOOM*factor));recalcCam();
   const[bx,by]=iso(before[0],before[1]);panX+=sx-bx;panY+=sy-by;recalcCam();}
-function handleTap(sx,sy){const t=unIso(sx,sy);
+function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гостях — только смотреть
   if(mode==="war"){deployAt(t[0],t[1]);return;}
   if(moving){const s=BT[moving.type].size,gx=Math.floor(t[0]-s/2),gy=Math.floor(t[1]-s/2);
     if(areaFree(gx,gy,s,moving)){moving.gx=gx;moving.gy=gy;moving=null;save();renderSide();toast("Перемещено");}else toast("Сюда нельзя");return;}
@@ -1240,7 +1298,7 @@ function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){cons
 
 /* ===== ПЛАВАЮЩАЯ ПАНЕЛЬ ===== */
 const floatBar=document.getElementById("floatBar");
-function positionFloatBar(){if(mode!=="build"||!sel||moving){floatBar.classList.remove("show");return;}
+function positionFloatBar(){if(visit||mode!=="build"||!sel||moving){floatBar.classList.remove("show");return;}
   const s=BT[sel.type].size,[cx,cy]=iso(sel.gx+s/2,sel.gy+s/2);
   floatBar.style.left=(cx-90)+"px";floatBar.style.top=(cy-(s*30+70))+"px";
   document.getElementById("fUp").style.display=upgradeCost(sel)?"block":"none";
@@ -1254,7 +1312,10 @@ document.getElementById("fDel").onclick=e=>{e.stopPropagation();if(sel)deleteBui
 /* ===== БОКОВАЯ ПАНЕЛЬ ===== */
 const side=document.getElementById("side");
 let buildTab="eco";
-function renderSide(){if(mode==="build")buildSide();else warSide();}
+function renderSide(){
+  if(visit){side.innerHTML='<div class="sideTitle">🏝 В гостях</div><div class="card" style="cursor:default"><div class="ds"><b>'+(visit.name||"Игрок")+'</b><br>🏆 Трофеи: '+fmt(visit.trophies||0)+'<br><br>Это чужой остров — только просмотр.</div></div><button class="btn go" id="homeBtn">🏠 Вернуться домой</button>';
+    var hb=document.getElementById("homeBtn");if(hb)hb.onclick=leaveVisit;return;}
+  if(mode==="build")buildSide();else warSide();}
 function resLine(type,amount){const cls=type;const have=type==="ice"?S.ice:type==="stone"?S.stone:S.gem;const no=amount>have?"no":"";return `<span class="${no}"><span class="dot ${cls}"></span>${fmt(amount)}</span>`;}
 function targetTag(t){return t==="air"?`<span class="tag air">воздух</span>`:`<span class="tag gr">земля</span>`;}
 
@@ -1497,6 +1558,8 @@ function renderCatalog(){
   if(bb)bb.onclick=()=>{const t=catSel;closeCatalog();buildSel=t;sel=null;moving=null;renderSide();toast("Тапни по карте, чтобы поставить «"+BT[t].name+"»");};
 }
 document.getElementById("catOpen").onclick=openCatalog;
+document.getElementById("visitOpen").onclick=openVisitList;
+document.getElementById("visitHome").onclick=leaveVisit;
 function updHelp(){document.getElementById("help").innerHTML=mode==="build"
   ?"Тащи — карта · колесо/щипок — зум · тап по зданию — меню. Построй <b>Infantry Factory</b> и <b>Army Camp</b>, найми войско, потом «Поход». Авиация — в <b>Aircraft Factory</b> (HQ 4)."
   :"Тапай по <b>краю поля</b>, чтобы высаживать выбранных бойцов. Снеси вражеский <b>HQ</b> — победа. <b>Skyfire</b> бьёт всё, но <b>Anti-Air</b> его сбивают.";}
@@ -1545,7 +1608,7 @@ function buildIconCache(){for(const t in BT)ICN[t]=makeIcon("b",t,48);for(const 
 function bindNick(){var p=document.getElementById("nickPlate");if(!p)return;
   p.onclick=function(){var cur=S.name||"VALORION";var v=prompt("Твой ник:",cur);
     if(v!==null){v=v.trim().slice(0,16);if(v){S.name=v;save();refreshTop();toast("Имя изменено");}}};}
-function init(){load();syncAdminUI();paintResIcons();buildIconCache();resize();refreshTop();renderSide();updHelp();bindNick();requestAnimationFrame(loop);}
+function init(){load();syncAdminUI();paintResIcons();buildIconCache();resize();refreshTop();renderSide();updHelp();bindNick();publishIsland(true);requestAnimationFrame(loop);}
 window.addEventListener("resize",()=>{DPR=Math.min(DPR_CAP,Math.max(1,window.devicePixelRatio||1));resize();});
 window.addEventListener("load",resize);
 window.addEventListener("beforeunload",save);
