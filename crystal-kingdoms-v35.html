@@ -402,7 +402,7 @@ function load(){
       offlineCatchup();}
   }catch(e){S=freshState();}
   if(!S.obstacles)S.obstacles=genObstacles();                            // препятствия на острове
-  if(S.decoV!==2){S.obstacles=S.obstacles.filter(o=>!o.beach).concat(genBeachDecor());S.decoV=2;} // пляжный декор v2 (по одному + причал в воде)
+  if(S.decoV!==3){S.obstacles=S.obstacles.filter(o=>!o.beach).concat(genBeachDecor());S.decoV=3;} // пляжный декор v3 (новые объекты + причал/маяк в воде)
 }
 let lastSave=0;
 function maybeSave(now){if(now-lastSave>4000){lastSave=now;save();}}
@@ -443,20 +443,24 @@ function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
 // ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
 const BEACH_M=5.1; // ширина пляжа в клетках (увеличена)
 const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
-  chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1,sc:0.95},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1,sc:0.95},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1,sc:0.6},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1,sc:1.1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1,sc:1.9}};
+  chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1,sc:0.95},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1,sc:0.95},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1,sc:0.6},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1,sc:1.1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1,sc:1.9},
+  shells:{name:"Ракушки",size:1,cost:150,img:"shells",beach:1,sc:1.0},crystals:{name:"Кристаллы",size:1,cost:0,img:"crystals",beach:1,sc:1.1},anchor:{name:"Якорь",size:1,cost:200,img:"anchor",beach:1,sc:1.0},umbrella:{name:"Зонт",size:1,cost:200,img:"umbrella",beach:1,sc:1.15}};
 // пляжный декор — по одному экземпляру каждого, на песке (за краем острова)
-function genBeachDecor(){const d=[],items=["chest","boat","crates","lighthouse"],M=BEACH_M;
+function genBeachDecor(){const d=[],sand=["chest","boat","crates","shells","crystals","anchor","umbrella"],M=BEACH_M;
   const free=(gx,gy,sz)=>{for(const o of d){const os=OB[o.type].size;if(gx<o.gx+os+1&&gx+sz+1>o.gx&&gy<o.gy+os+1&&gy+sz+1>o.gy)return false;}return true;};
-  for(const t of items){const sz=OB[t].size;
+  for(const t of sand){const sz=OB[t].size;                          // декор на песке
     for(let k=0;k<60;k++){const gx=Math.round(-M+0.5+Math.random()*(GRID+2*M-2)),gy=Math.round(-M+0.5+Math.random()*(GRID+2*M-2));
       if(gx+sz>0&&gx<GRID&&gy+sz>0&&gy<GRID)continue;                 // не в траве
       if(gx<-M||gy<-M||gx+sz>GRID+M||gy+sz>GRID+M)continue;           // в пределах пляжа
       if(free(gx,gy,sz)){d.push({ob:true,beach:true,type:t,gx,gy});break;}}}
-  // причал — в воде у самого края пляжа, "присоединён" к острову
-  d.push({ob:true,beach:true,type:"dock",gx:Math.round(GRID*0.55),gy:Math.round(GRID+M-0.5)});
+  // причал и маяк — в воде у края острова
+  d.push({ob:true,beach:true,type:"dock",gx:Math.round(GRID*0.55),gy:Math.round(GRID+M-0.4)});
+  d.push({ob:true,beach:true,type:"lighthouse",gx:Math.round(-M-0.6),gy:Math.round(GRID*0.42)});
   return d;}
 function openChest(o){if(confirm("Открыть сундук? (+5000 Gold, +5 Ruby)")){
     const c=caps();S.ice=Math.min(c.ice,S.ice+5000);S.gem+=5;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Сундук открыт: +5000 Gold, +5 Ruby");}}
+function openCrystals(o){if(confirm("Собрать кристаллы? (+15 Ruby)")){
+    S.gem+=15;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Кристаллы собраны: +15 Ruby");}}
 function genObstacles(){const obs=[];
   const free=(gx,gy,sz)=>{if(gx<1||gy<1||gx+sz>GRID-1||gy+sz>GRID-1)return false;
     for(const b of S.buildings){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+sz>b.gx&&gy<b.gy+bs&&gy+sz>b.gy)return false;}
@@ -569,7 +573,21 @@ function cropToContent(img){const w=img.naturalWidth,h=img.naturalHeight,c=docum
   let d;try{d=g.getImageData(0,0,w,h).data;}catch(e){return img;}
   let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
   if(maxx<minx)return img;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
-["rock","bush","palm","chest","boat","crates","dock","lighthouse"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
+// спец-очистка причала: убираем белый фон, бирюзовую воду из спрайта и замкнутые белые пятна
+function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");g.drawImage(im,0,0);
+  let id;try{id=g.getImageData(0,0,w,h);}catch(e){return im;}
+  const d=id.data,vis=new Uint8Array(w*h),st=[];
+  const white=o=>d[o]>224&&d[o+1]>224&&d[o+2]>224;
+  const water=o=>{const r=d[o],gg=d[o+1],b=d[o+2];return b>140&&gg>140&&r<b-16&&r<gg-6;}; // светлая бирюза
+  const isBG=i=>{const o=i*4;return d[o+3]>10&&(white(o)||water(o));};
+  const push=(x,y)=>{if(x<0||y<0||x>=w||y>=h)return;const i=y*w+x;if(vis[i])return;vis[i]=1;if(isBG(i)){d[i*4+3]=0;st.push(i);}};
+  for(let x=0;x<w;x++){push(x,0);push(x,h-1);}for(let y=0;y<h;y++){push(0,y);push(w-1,y);}
+  while(st.length){const i=st.pop(),x=i%w,y=(i/w)|0;push(x+1,y);push(x-1,y);push(x,y+1);push(x,y-1);}
+  for(let i=0;i<w*h;i++){const o=i*4;if(d[o+3]>10&&d[o]>=243&&d[o+1]>=243&&d[o+2]>=243)d[o+3]=0;} // замкнутые белые пятна
+  g.putImageData(id,0,0);
+  let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>10){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
+  if(maxx<minx)return c;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
+["rock","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
@@ -1208,7 +1226,7 @@ function handleTap(sx,sy){const t=unIso(sx,sy);
   const b=buildingAt(t[0],t[1]);
   if(b){sel=(b===sel)?null:b;renderSide();return;}
   const o=obstacleAt(t[0],t[1]);
-  if(o){if(o.type==="chest")openChest(o);else removeObstaclePrompt(o);return;}
+  if(o){if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else removeObstaclePrompt(o);return;}
   sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s){const z=b.gx+b.gy;if(z>fz){fz=z;found=b;}}}return found;}
