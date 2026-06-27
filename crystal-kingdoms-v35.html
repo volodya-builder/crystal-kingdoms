@@ -389,18 +389,19 @@ function freshState(){
 function save(){try{S.lastTs=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
 function load(){
   try{const raw=localStorage.getItem(SAVE_KEY);
-    if(!raw){S=freshState();return;}
-    S=JSON.parse(raw);
-    const f=freshState();
-    S.army=Object.assign({},f.army,S.army||{});
-    S.troopLevel=Object.assign({},f.troopLevel,S.troopLevel||{});
-    S.queueF=S.queueF||[];S.queueH=S.queueH||[];S.selUnit=S.selUnit||"striker";
-    S.name=S.name||"VALORION";
-    S.admin=Object.assign({infRes:false,instaBuild:false,instaArmy:false},S.admin||{});
-    S.trophies=S.trophies||0;
-    if(S.research===undefined)S.research=null;
-    offlineCatchup();
+    if(!raw){S=freshState();}
+    else{S=JSON.parse(raw);
+      const f=freshState();
+      S.army=Object.assign({},f.army,S.army||{});
+      S.troopLevel=Object.assign({},f.troopLevel,S.troopLevel||{});
+      S.queueF=S.queueF||[];S.queueH=S.queueH||[];S.selUnit=S.selUnit||"striker";
+      S.name=S.name||"VALORION";
+      S.admin=Object.assign({infRes:false,instaBuild:false,instaArmy:false},S.admin||{});
+      S.trophies=S.trophies||0;
+      if(S.research===undefined)S.research=null;
+      offlineCatchup();}
   }catch(e){S=freshState();}
+  if(!S.obstacles)S.obstacles=genObstacles();   // препятствия на острове
 }
 let lastSave=0;
 function maybeSave(now){if(now-lastSave>4000){lastSave=now;save();}}
@@ -438,8 +439,27 @@ function limitFor(t){return HQ[S.hqLevel].lim[t]||0;}
 function buildersUsed(){let n=0;for(const b of S.buildings)if(!b.built)n++;return n;}
 function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
+// ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
+const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock"},palm:{name:"Пальма",size:1,cost:400,img:"palm"},bush:{name:"Куст",size:1,cost:200,img:"bush"}};
+function genObstacles(){const obs=[];
+  const free=(gx,gy,sz)=>{if(gx<1||gy<1||gx+sz>GRID-1||gy+sz>GRID-1)return false;
+    for(const b of S.buildings){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+sz>b.gx&&gy<b.gy+bs&&gy+sz>b.gy)return false;}
+    for(const o of obs){const os=OB[o.type].size;if(gx<o.gx+os&&gx+sz>o.gx&&gy<o.gy+os&&gy+sz>o.gy)return false;}return true;};
+  for(let i=0;i<20;i++){const r=Math.random(),t=r<0.3?"rock":(r<0.66?"palm":"bush"),sz=OB[t].size;
+    for(let k=0;k<25;k++){const gx=1+Math.floor(Math.random()*(GRID-2-sz)),gy=1+Math.floor(Math.random()*(GRID-2-sz));
+      if(free(gx,gy,sz)){obs.push({ob:true,type:t,gx,gy});break;}}}
+  return obs;}
+function obstacleAt(gx,gy){if(!S.obstacles)return null;let f=null,fz=-1;for(const o of S.obstacles){const s=OB[o.type].size;
+  if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s){const z=o.gx+o.gy;if(z>fz){fz=z;f=o;}}}return f;}
+function removeObstaclePrompt(o){const ob=OB[o.type],inf=S.admin&&S.admin.infRes;
+  if(!inf&&S.ice<ob.cost){toast("Нужно "+ob.cost+" Gold, чтобы убрать");return;}
+  if(confirm("Убрать «"+ob.name+"» за "+ob.cost+" Gold?")){
+    if(!inf)S.ice-=ob.cost;
+    S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Убрано");}}
 function occupied(gx,gy,ig){for(const b of S.buildings){if(b===ig)continue;const s=BT[b.type].size;
-  if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s)return true;}return false;}
+  if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s)return true;}
+  if(S.obstacles)for(const o of S.obstacles){const s=OB[o.type].size;if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s)return true;}
+  return false;}
 function areaFree(gx,gy,s,ig){for(let y=gy;y<gy+s;y++)for(let x=gx;x<gx+s;x++){if(!inBounds(x,y,1))return false;if(occupied(x,y,ig))return false;}return true;}
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1700);}
 // эффективные статы войск с учётом уровня лаборатории
@@ -536,7 +556,6 @@ function cropToContent(img){const w=img.naturalWidth,h=img.naturalHeight,c=docum
 ["rock","bush","palm"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}bakeGround();};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
-  if(!decos)initDecos();
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
   const g=cv2.getContext("2d");
   const bi=(gx,gy)=>[G_BOX+(gx-gy)*(TW/2),G_BOY+((gx+gy)-GRID)*(TH/2)];
@@ -554,12 +573,7 @@ function bakeGround(){
     const A=bi(gx,gy),B=bi(gx+1,gy),C=bi(gx+1,gy+1),D=bi(gx,gy+1);
     g.save();g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.lineTo(C[0],C[1]);g.lineTo(D[0],D[1]);g.closePath();g.clip();
     g.drawImage(((gx+gy)&1)?grassGreenCv:grassLightCv,A[0]-TW/2-0.5,A[1]-0.5,TW+1,TH+1);g.restore();}
-  // ДЕКОР (PNG камни/куст/пальма; запасной — процедурные)
-  const DKEY={0:"rock",1:"bush",2:"palm"},DW={0:84,1:56,2:92};
-  for(const d of decos){const[x,y]=bi(d.gx,d.gy),cv=decoCv[DKEY[d.t]];
-    if(cv){const cw=cv.width||cv.naturalWidth,ch=cv.height||cv.naturalHeight,W2=DW[d.t]*d.s,H2=W2*(ch/cw);
-      g.drawImage(cv,x-W2/2,y-H2+H2*0.06,W2,H2);}
-    else{if(d.t===0)drawRock(g,x,y,d.s,1);else drawBush(g,x,y,d.s,1);}}
+  // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
 }
 function drawGround(){
@@ -731,6 +745,11 @@ function spriteFX(b,cx,topY,W,H){const T=ANIM,ph=b.gx*0.7+b.gy*0.5;
       ctx.strokeStyle="rgba(255,255,255,"+a+")";ctx.lineWidth=1.4*ZOOM;
       ctx.beginPath();ctx.moveTo(sx-rr,sy);ctx.lineTo(sx+rr,sy);ctx.moveTo(sx,sy-rr);ctx.lineTo(sx,sy+rr);ctx.stroke();}}
 }
+function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),img=decoCv[OB[o.type].img],w=sz*TW*ZOOM,h=w*0.5;
+  const shw=w*0.6,shh=shw*0.34;ctx.drawImage(softShadow,cen[0]-shw/2,cen[1]+h*0.05-shh/2,shw,shh);  // тень
+  if(img){const iw=img.width||img.naturalWidth,ih=img.height||img.naturalHeight;
+    const W=w*0.92,H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9;
+    ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}}
 function drawBuilding(b){
   drawPlot(b);
   {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
@@ -837,8 +856,9 @@ function render(){
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
     if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     else if(!moving&&hoverTile){const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}
-    const list=[...S.buildings].sort((a,b)=>(a.gx+a.gy+BT[a.type].size)-(b.gx+b.gy+BT[b.type].size));
-    for(const b of list){if(b===moving)continue;drawBuilding(b);if(b===sel)drawSelect(b);}
+    const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
+    const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
+    for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
   }else{
     const ents=[];
@@ -1169,7 +1189,11 @@ function handleTap(sx,sy){const t=unIso(sx,sy);
     if(hit){buildSel=null;sel=hit;renderSide();return;} // тап по зданию — открыть его панель, выйти из стройки
     const s=BT[buildSel].size,gx=Math.floor(t[0]-s/2),gy=Math.floor(t[1]-s/2);placeNew(buildSel,gx,gy);
     if(countType(buildSel)>=limitFor(buildSel))buildSel=null;return;}
-  const b=buildingAt(t[0],t[1]);sel=(b===sel)?null:b;renderSide();}
+  const b=buildingAt(t[0],t[1]);
+  if(b){sel=(b===sel)?null:b;renderSide();return;}
+  const o=obstacleAt(t[0],t[1]);
+  if(o){removeObstaclePrompt(o);return;}
+  sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s){const z=b.gx+b.gy;if(z>fz){fz=z;found=b;}}}return found;}
 
@@ -1453,6 +1477,7 @@ function buildAllMax(){
   const occ=Array.from({length:GRID},()=>new Uint8Array(GRID));
   const mark=(gx,gy,s)=>{for(let y=gy;y<gy+s;y++)for(let x=gx;x<gx+s;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)occ[y][x]=1;};
   for(const b of S.buildings)mark(b.gx,b.gy,BT[b.type].size);
+  if(S.obstacles)for(const o of S.obstacles)mark(o.gx,o.gy,OB[o.type].size);  // не строить на препятствиях
   const findSpot=s=>{for(let gy=0;gy+s<=GRID;gy++)for(let gx=0;gx+s<=GRID;gx++){let free=true;
     for(let y=gy;y<gy+s&&free;y++)for(let x=gx;x<gx+s;x++)if(occ[y][x]){free=false;break;}
     if(free)return[gx,gy];}return null;};
@@ -1468,7 +1493,7 @@ function buildAllMax(){
   save();refreshTop();renderSide();toast("База отстроена: +"+added+" зданий, всё на максимуме");
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
-document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
+document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles();save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){if(catEl.classList.contains("show")){closeCatalog();return;}buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
 
 /* ===== СТАРТ ===== */
