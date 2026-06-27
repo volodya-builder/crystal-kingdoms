@@ -713,16 +713,28 @@ function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.cr
   if(maxx<minx)return c;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
 ["rock","rock1","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 // полоса-переход вдоль ребра острова: верх картинки (трава/песок) — внутрь, прозрачный край — наружу
-function edgeStrip(g,img,P0,P1,inset,outset,alpha){
+function edgeStrip(g,img,P0,P1,inset,outset,alpha,cen){
   if(!img||img.complete===false)return;
-  const ov=40,ddx=P1[0]-P0[0],ddy=P1[1]-P0[1],LL=Math.hypot(ddx,ddy)||1,ux=ddx/LL,uy=ddy/LL;
-  const A=[P0[0]-ux*ov,P0[1]-uy*ov],B=[P1[0]+ux*ov,P1[1]+uy*ov];        // выходим за углы — без щелей
+  const ov=70,ddx=P1[0]-P0[0],ddy=P1[1]-P0[1],LL=Math.hypot(ddx,ddy)||1,ux=ddx/LL,uy=ddy/LL;
+  const A=[P0[0]-ux*ov,P0[1]-uy*ov],B=[P1[0]+ux*ov,P1[1]+uy*ov];        // выходим за углы — заполним до митры
   const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(!L)return;
   const nx=dy/L,ny=-dx/L;                                              // внешняя нормаль (ромб по часовой)
   const Wi=img.naturalWidth||img.width,Hi=img.naturalHeight||img.height,span=inset+outset;if(!Wi||!Hi)return;
   const ax=dx/Wi,ay=dy/Wi,cx=nx*span/Hi,cy=ny*span/Hi;                 // оси картинки в мире
   const ex=A[0]+nx*(-inset),ey=A[1]+ny*(-inset);                       // верх картинки — на inset внутрь
-  g.save();if(alpha!=null)g.globalAlpha=alpha;g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
+  g.save();
+  if(cen){ // митра: режем полосу по диагоналям через углы P0,P1 и центр — соседние полосы стыкуются без нахлёста
+    const M=[(P0[0]+P1[0])/2,(P0[1]+P1[1])/2],BIG=1e5;
+    const half=(Q)=>{const dr=[Q[0]-cen[0],Q[1]-cen[1]],nlx=-dr[1],nly=dr[0],
+      s=((M[0]-Q[0])*nlx+(M[1]-Q[1])*nly)>=0?1:-1;
+      g.beginPath();
+      g.moveTo(Q[0]+dr[0]*BIG,Q[1]+dr[1]*BIG);g.lineTo(Q[0]-dr[0]*BIG,Q[1]-dr[1]*BIG);
+      g.lineTo(Q[0]-dr[0]*BIG+nlx*s*BIG,Q[1]-dr[1]*BIG+nly*s*BIG);
+      g.lineTo(Q[0]+dr[0]*BIG+nlx*s*BIG,Q[1]+dr[1]*BIG+nly*s*BIG);
+      g.closePath();g.clip();};
+    half(P0);half(P1);
+  }
+  if(alpha!=null)g.globalAlpha=alpha;g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
 }
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
@@ -746,8 +758,9 @@ function bakeGround(){
   // мягкие переходы: песок→вода по краю пляжа, затем трава→песок по краю острова
   const Bc=[bi(-m,-m),bi(GRID+m,-m),bi(GRID+m,GRID+m),bi(-m,GRID+m)];   // углы пляжа
   const Gc=[bi(0,0),bi(GRID,0),bi(GRID,GRID),bi(0,GRID)];               // углы травяного острова
-  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5);// песок → вода (мягкая полупрозрачная пена)
-  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52);// трава → песок (без белой дымки)
+  const cen=bi(GRID/2,GRID/2);                                          // центр острова — для митры углов
+  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5,cen);// песок → вода (мягкая полупрозрачная пена)
+  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52,1,cen);// трава → песок (без белой дымки)
   // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
 }
@@ -850,6 +863,9 @@ function drawSpriteBuilding(b,spr){
   if(b.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
   ctx.globalAlpha=1;
+  if(b===hoverObj){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter"; // очень лёгкая подсветка при наведении
+    if(b.flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);}
+    ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
     ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cen[0],by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
@@ -926,9 +942,11 @@ function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),i
   const shw=w*0.6,shh=shw*0.34;ctx.drawImage(softShadow,cen[0]-shw/2,cen[1]+h*0.05-shh/2,shw,shh);  // тень
   if(img){const iw=img.width||img.naturalWidth,ih=img.height||img.naturalHeight;
     const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9,dx=cen[0]-W/2,dy=bottomY-H;
-    if(o===hoverObj&&o.type==="lighthouse"&&!o.flip){ctx.save();ctx.shadowColor="rgba(255,225,110,.95)";ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.restore();} // контур-свечение только у маяка
-    if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,dx,dy,W,H);ctx.restore();}
-    else ctx.drawImage(img,dx,dy,W,H);}}
+    const blit=()=>{if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,dx,dy,W,H);ctx.restore();}else ctx.drawImage(img,dx,dy,W,H);};
+    if(o===hoverObj&&o.type==="lighthouse"){ctx.save();ctx.shadowColor="rgba(255,225,110,.9)";ctx.shadowBlur=15*ZOOM;blit();blit();ctx.restore();} // контур-свечение у маяка
+    blit();
+    if(o===hoverObj&&o.type!=="lighthouse"){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter";blit();ctx.restore();} // очень лёгкая подсветка
+  }}
 function drawBuilding(b){
   drawPlot(b);
   {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
@@ -1042,10 +1060,9 @@ function render(){
     else if(!moving&&hoverTile){
       const hb=buildingAt(hoverTile[0],hoverTile[1]);
       const ho=hb?null:((hoverPx&&obstacleAtScreen(hoverPx[0],hoverPx[1]))||obstacleAt(hoverTile[0],hoverTile[1]));
-      const hl=(ho&&ho.type==="lighthouse")?ho:null;                  // подсвечиваем только маяк среди объектов
-      hoverObj=hb||hl;
-      if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // все клетки здания
-      else if(hl)drawFootprintHi(hl.gx,hl.gy,OB[hl.type].size);       // только маяк
+      hoverObj=hb||ho;                                               // лёгкая подсветка для всего
+      if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // клетки здания
+      else if(ho&&ho.type==="lighthouse")drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size); // клетки маяка
       else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
