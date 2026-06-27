@@ -760,7 +760,7 @@ function bakeGround(){
   const Gc=[bi(0,0),bi(GRID,0),bi(GRID,GRID),bi(0,GRID)];               // углы травяного острова
   const cen=bi(GRID/2,GRID/2);                                          // центр острова — для митры углов
   for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5,cen);// песок → вода (мягкая полупрозрачная пена)
-  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52,1,cen);// трава → песок (без белой дымки)
+  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],4,56,1,cen);// трава → песок (внутрь почти не заходит — клетки чистые)
   // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
 }
