@@ -530,8 +530,20 @@ function bakeGround(){
   }
   groundCanvas=cv2;groundBaked=true;
 }
+function diamond(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<4;i++)ctx.lineTo(p[i][0],p[i][1]);ctx.closePath();}
 function drawGround(){
   const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
+  // ВОДА вокруг острова
+  const wg=ctx.createLinearGradient(0,0,0,VH);wg.addColorStop(0,"#1f74ad");wg.addColorStop(1,"#0d4a80");
+  ctx.fillStyle=wg;ctx.fillRect(0,0,VW,VH);
+  ctx.save();ctx.globalAlpha=0.09;ctx.strokeStyle="#cdeeff";ctx.lineWidth=2;
+  for(let i=0;i<9;i++){const yy=((ANIM*16+i*88)%(VH+120))-60;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(VW,yy+26);ctx.stroke();}
+  ctx.restore();
+  // ПЛЯЖ (диамант чуть больше поля) + пена
+  const m=1.7,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>iso(p[0],p[1]));
+  ctx.fillStyle="rgba(255,255,255,.35)";diamond(beach.map(p=>[p[0],p[1]+4*ZOOM]));ctx.fill();      // пена
+  ctx.fillStyle="#e7d39a";diamond(beach);ctx.fill();                                                // песок
+  ctx.fillStyle="#d8be7e";diamond(beach.map((p,i)=>[p[0]*0.985+c[i][0]*0.015,p[1]*0.985+c[i][1]*0.015]));ctx.fill();
   if(groundBaked){
     ctx.drawImage(groundCanvas,oX-G_BOX*ZOOM,oY-G_BOY*ZOOM,G_BAKE_W*ZOOM,G_BAKE_H*ZOOM);
   }else{
@@ -636,6 +648,7 @@ function drawSpriteBuilding(b,spr){
   if(b.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
   ctx.globalAlpha=1;
+  if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
     ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cen[0],by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle="#bfeaff";ctx.font="bold "+(10*ZOOM)+"px Trebuchet MS";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b.level,cen[0],by);}
@@ -684,14 +697,32 @@ function drawGoldMine(cx,cy,baseH,ph){const T=ANIM;
   ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.arc(cx-6*ZOOM,cy-baseH*0.45,2.4*ZOOM,Math.PI,0);ctx.fill();
   ctx.fillStyle="#2a1c0a";ctx.beginPath();ctx.arc(cx-9*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();ctx.beginPath();ctx.arc(cx-3*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();}
 // земляная площадка под зданием (как в Mavia)
-function drawPlot(b){if(b.type==="wall")return;const s=BT[b.type].size;
-  const cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
+function drawPlot(b){const s=BT[b.type].size,cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
+  // мягкая контактная тень (под все объекты, включая стену)
+  const sh=ctx.createRadialGradient(cen[0],cen[1]+h*0.15,0,cen[0],cen[1]+h*0.15,w*0.5);
+  sh.addColorStop(0,"rgba(6,20,10,.35)");sh.addColorStop(1,"rgba(6,20,10,0)");
+  ctx.fillStyle=sh;ctx.beginPath();ctx.ellipse(cen[0],cen[1]+h*0.15,w*0.5,h*0.5,0,0,7);ctx.fill();
+  if(b.type==="wall")return;
   ctx.save();
   ctx.fillStyle="rgba(150,108,58,.85)";
   ctx.beginPath();ctx.moveTo(cen[0],cen[1]-h/2);ctx.lineTo(cen[0]+w/2,cen[1]);ctx.lineTo(cen[0],cen[1]+h/2);ctx.lineTo(cen[0]-w/2,cen[1]);ctx.closePath();ctx.fill();
   ctx.fillStyle="rgba(120,84,42,.9)";const w2=w*0.78,h2=h*0.78;
   ctx.beginPath();ctx.moveTo(cen[0],cen[1]-h2/2);ctx.lineTo(cen[0]+w2/2,cen[1]);ctx.lineTo(cen[0],cen[1]+h2/2);ctx.lineTo(cen[0]-w2/2,cen[1]);ctx.closePath();ctx.fill();
   ctx.restore();}
+// живые эффекты поверх спрайта: дымок у производств, блик у кристальных зданий
+function spriteFX(b,cx,topY,W,H){const T=ANIM,ph=b.gx*0.7+b.gy*0.5;
+  if(b.type==="factory"||b.type==="stonestore"||b.type==="stonepump"||b.type==="lab"){
+    for(let i=0;i<3;i++){const k=(T*0.32+i/3+ph)%1,sx=cx+W*0.16+Math.sin(k*6+ph)*4*ZOOM,sy=topY+H*0.06-k*H*0.32;
+      ctx.fillStyle="rgba(228,232,236,"+(0.32*(1-k))+")";ctx.beginPath();ctx.arc(sx,sy,(2+k*4)*ZOOM,0,7);ctx.fill();}}
+  if(b.type==="hq"||b.type==="altar"||b.type==="icestore"){
+    const g=0.5+0.5*Math.sin(T*2.4+ph),gy=topY+H*0.2,gr=ctx.createRadialGradient(cx,gy,0,cx,gy,W*0.28);
+    gr.addColorStop(0,"rgba(190,238,255,"+(0.22*g)+")");gr.addColorStop(1,"rgba(190,238,255,0)");
+    ctx.fillStyle=gr;ctx.beginPath();ctx.arc(cx,gy,W*0.28,0,7);ctx.fill();
+    // искра
+    const sp=(T*0.5+ph)%1;if(sp<0.5){const a=1-sp*2,sx=cx+Math.cos(ph*9)*W*0.18,sy=gy+Math.sin(ph*7)*H*0.05,rr=3*ZOOM;
+      ctx.strokeStyle="rgba(255,255,255,"+a+")";ctx.lineWidth=1.4*ZOOM;
+      ctx.beginPath();ctx.moveTo(sx-rr,sy);ctx.lineTo(sx+rr,sy);ctx.moveTo(sx,sy-rr);ctx.lineTo(sx,sy+rr);ctx.stroke();}}
+}
 function drawBuilding(b){
   drawPlot(b);
   {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
