@@ -510,7 +510,7 @@ grassBase.onload=function(){
   grassLightCv.getContext("2d").drawImage(grassBase,0,0);
   grassGreenCv=document.createElement("canvas");grassGreenCv.width=w;grassGreenCv.height=h;
   const gg=grassGreenCv.getContext("2d");gg.drawImage(grassBase,0,0);
-  gg.globalCompositeOperation="multiply";gg.fillStyle="#bfe06a";gg.fillRect(0,0,w,h); // оттенок 2-й клетки (можно докрутить)
+  gg.globalCompositeOperation="multiply";gg.fillStyle="#e9f1d2";gg.fillRect(0,0,w,h); // оттенок 2-й клетки: еле заметнее (как в Mavia)
   gg.globalCompositeOperation="source-over";
   bakeGround();
 };
@@ -548,15 +548,28 @@ function drawGround(){
   grad.addColorStop(0,"rgba(0,0,0,0)");grad.addColorStop(1,"rgba(8,24,12,.35)");
   ctx.save();ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.clip();
   ctx.fillStyle=grad;ctx.fill();ctx.restore();
-  // тонкая изосетка для читаемости клеток
-  ctx.strokeStyle="rgba(20,46,14,.12)";ctx.lineWidth=1;ctx.beginPath();
-  for(let g=0;g<=GRID;g++){const a=iso(g,0),b=iso(g,GRID),cc=iso(0,g),d=iso(GRID,g);
-    ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.moveTo(cc[0],cc[1]);ctx.lineTo(d[0],d[1]);}
-  ctx.stroke();
+  // декор: камни и кустики на пустой траве (как в Mavia)
+  if(!decos)initDecos();
+  for(const d of decos){const[x,y]=iso(d.gx,d.gy);if(d.t===0)drawRock(x,y,d.s);else drawBush(x,y,d.s);}
   // песчаная кромка
-  ctx.strokeStyle="rgba(214,190,120,.6)";ctx.lineWidth=3;
+  ctx.strokeStyle="rgba(214,190,120,.55)";ctx.lineWidth=3;
   ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();
 }
+let decos=null;
+function initDecos(){decos=[];const cx=GRID/2,cy=GRID/2;
+  for(let i=0;i<46;i++){const gx=2+Math.random()*(GRID-4),gy=2+Math.random()*(GRID-4);
+    if(Math.hypot(gx-cx,gy-cy)<7)continue;                 // не в центре (где база)
+    decos.push({gx,gy,t:Math.random()<0.5?0:1,s:0.8+Math.random()*0.7});}
+}
+function drawRock(x,y,sc){const r=9*ZOOM*sc;
+  ctx.fillStyle="rgba(8,24,12,.22)";ctx.beginPath();ctx.ellipse(x,y+r*0.5,r*1.1,r*0.45,0,0,7);ctx.fill();   // тень
+  ctx.fillStyle="#8b8f96";ctx.beginPath();ctx.ellipse(x,y,r,r*0.7,0,0,7);ctx.fill();
+  ctx.fillStyle="#a7abb2";ctx.beginPath();ctx.ellipse(x-r*0.2,y-r*0.25,r*0.6,r*0.4,0,0,7);ctx.fill();        // блик
+  ctx.fillStyle="#6f747b";ctx.beginPath();ctx.ellipse(x+r*0.4,y+r*0.2,r*0.45,r*0.3,0,0,7);ctx.fill();}
+function drawBush(x,y,sc){const r=8*ZOOM*sc;
+  ctx.fillStyle="rgba(8,24,12,.20)";ctx.beginPath();ctx.ellipse(x,y+r*0.5,r*1.1,r*0.4,0,0,7);ctx.fill();
+  ctx.fillStyle="#3f7a26";for(const o of [[-0.5,0],[0.5,0],[0,-0.4]]){ctx.beginPath();ctx.arc(x+o[0]*r,y+o[1]*r,r*0.7,0,7);ctx.fill();}
+  ctx.fillStyle="#5aa336";for(const o of [[-0.4,-0.15],[0.45,-0.1],[0.05,-0.5]]){ctx.beginPath();ctx.arc(x+o[0]*r,y+o[1]*r,r*0.4,0,7);ctx.fill();}}
 
 /* ===== ОТРИСОВКА ЗДАНИЙ ===== */
 /* ===== СПРАЙТЫ ЗДАНИЙ (демо-текстуры) ===== */
@@ -670,7 +683,17 @@ function drawGoldMine(cx,cy,baseH,ph){const T=ANIM;
   ctx.fillStyle="#5a3d18";ctx.fillRect(cx-10*ZOOM,cy-baseH*0.45,8*ZOOM,5*ZOOM);
   ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.arc(cx-6*ZOOM,cy-baseH*0.45,2.4*ZOOM,Math.PI,0);ctx.fill();
   ctx.fillStyle="#2a1c0a";ctx.beginPath();ctx.arc(cx-9*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();ctx.beginPath();ctx.arc(cx-3*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();}
+// земляная площадка под зданием (как в Mavia)
+function drawPlot(b){if(b.type==="wall")return;const s=BT[b.type].size;
+  const cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
+  ctx.save();
+  ctx.fillStyle="rgba(150,108,58,.85)";
+  ctx.beginPath();ctx.moveTo(cen[0],cen[1]-h/2);ctx.lineTo(cen[0]+w/2,cen[1]);ctx.lineTo(cen[0],cen[1]+h/2);ctx.lineTo(cen[0]-w/2,cen[1]);ctx.closePath();ctx.fill();
+  ctx.fillStyle="rgba(120,84,42,.9)";const w2=w*0.78,h2=h*0.78;
+  ctx.beginPath();ctx.moveTo(cen[0],cen[1]-h2/2);ctx.lineTo(cen[0]+w2/2,cen[1]);ctx.lineTo(cen[0],cen[1]+h2/2);ctx.lineTo(cen[0]-w2/2,cen[1]);ctx.closePath();ctx.fill();
+  ctx.restore();}
 function drawBuilding(b){
+  drawPlot(b);
   {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
   const d=BT[b.type],s=d.size,[cx,cy]=iso(b.gx+s/2,b.gy+s/2);
   const wpx=s*TW*ZOOM*0.92,baseH=(s===1?14:(b.type==="hq"?40:26))*ZOOM,col=BCOL[b.type],w=wpx,h=wpx*0.5;
