@@ -138,8 +138,8 @@
   #fRot{background-image:url('assets/ic_rotate.png')}
   #fMove{background-image:url('assets/ic_move.png')}
   #fDel{background-image:url('assets/ic_delete.png')}
-  #adminBtn{position:absolute;right:10px;top:10px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(14,28,60,.85);color:var(--muted);cursor:pointer;font-size:15px}
-  #adminPanel{position:absolute;right:10px;top:52px;width:230px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px;display:none;z-index:10}
+  #adminBtn{position:absolute;right:10px;top:10px;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(14,28,60,.85);color:var(--muted);cursor:pointer;font-size:15px;z-index:60}
+  #adminPanel{position:absolute;right:10px;top:52px;width:230px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px;display:none;z-index:140;box-shadow:0 10px 30px rgba(0,0,0,.5)}
   #adminPanel.show{display:block}
   #adminPanel .ap-title{font-size:12px;letter-spacing:1px;color:var(--muted);margin-bottom:8px}
   #adminPanel label{display:block;font-size:12px;margin:6px 0}
@@ -678,7 +678,18 @@ grassBase.src="assets/grass.png";
 let waterPattern=null,waterTexW=512,sandPattern=null,sandTexW=512;
 const waterImg=new Image();waterImg.onload=function(){bakeGround();};waterImg.src="assets/water.png";
 const sandImg=new Image();sandImg.onload=function(){bakeGround();};sandImg.src="assets/sand.png";
-const grassEdgeImg=new Image();grassEdgeImg.onload=function(){bakeGround();};grassEdgeImg.src="assets/grassedge.png"; // трава→песок
+// чистим белёсую дымку из текстуры травы: оставляем только зелёные пиксели
+function cleanGrassEdge(img){const w=img.naturalWidth,h=img.naturalHeight;if(!w||!h)return img;
+  const c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");g.drawImage(img,0,0);
+  let id;try{id=g.getImageData(0,0,w,h);}catch(e){return img;}
+  const d=id.data;
+  for(let i=0;i<w*h;i++){const o=i*4,a=d[o+3];if(!a)continue;
+    const green=d[o+1]-Math.max(d[o],d[o+2]);        // >0 → пиксель действительно зелёный
+    if(green<12)d[o+3]=Math.round(a*Math.max(0,green/12)); // белое/серое (green≈0) → прозрачно
+  }
+  g.putImageData(id,0,0);return c;}
+let grassEdgeCv=null;
+const grassEdgeImg=new Image();grassEdgeImg.onload=function(){grassEdgeCv=cleanGrassEdge(grassEdgeImg);bakeGround();};grassEdgeImg.src="assets/grassedge.png"; // трава→песок
 const shoreImg=new Image();shoreImg.onload=function(){bakeGround();};shoreImg.src="assets/shore.png";                  // песок→вода
 // PNG-декорации (прозрачный фон): камни, куст, пальма
 const decoCv={};
@@ -703,12 +714,12 @@ function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.cr
 ["rock","rock1","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 // полоса-переход вдоль ребра острова: верх картинки (трава/песок) — внутрь, прозрачный край — наружу
 function edgeStrip(g,img,P0,P1,inset,outset,alpha){
-  if(!img||!img.complete||!img.naturalWidth)return;
+  if(!img||img.complete===false)return;
   const ov=40,ddx=P1[0]-P0[0],ddy=P1[1]-P0[1],LL=Math.hypot(ddx,ddy)||1,ux=ddx/LL,uy=ddy/LL;
   const A=[P0[0]-ux*ov,P0[1]-uy*ov],B=[P1[0]+ux*ov,P1[1]+uy*ov];        // выходим за углы — без щелей
   const dx=B[0]-A[0],dy=B[1]-A[1],L=Math.hypot(dx,dy);if(!L)return;
   const nx=dy/L,ny=-dx/L;                                              // внешняя нормаль (ромб по часовой)
-  const Wi=img.naturalWidth,Hi=img.naturalHeight,span=inset+outset;
+  const Wi=img.naturalWidth||img.width,Hi=img.naturalHeight||img.height,span=inset+outset;if(!Wi||!Hi)return;
   const ax=dx/Wi,ay=dy/Wi,cx=nx*span/Hi,cy=ny*span/Hi;                 // оси картинки в мире
   const ex=A[0]+nx*(-inset),ey=A[1]+ny*(-inset);                       // верх картинки — на inset внутрь
   g.save();if(alpha!=null)g.globalAlpha=alpha;g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
@@ -736,7 +747,7 @@ function bakeGround(){
   const Bc=[bi(-m,-m),bi(GRID+m,-m),bi(GRID+m,GRID+m),bi(-m,GRID+m)];   // углы пляжа
   const Gc=[bi(0,0),bi(GRID,0),bi(GRID,GRID),bi(0,GRID)];               // углы травяного острова
   for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5);// песок → вода (мягкая полупрозрачная пена)
-  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52);// трава → песок
+  for(let i=0;i<4;i++)edgeStrip(g,grassEdgeCv||grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52);// трава → песок (без белой дымки)
   // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
 }
@@ -1649,7 +1660,8 @@ document.getElementById("zIn").onclick=()=>zoomAt(VW/2,VH/2,1.18);
 document.getElementById("zOut").onclick=()=>zoomAt(VW/2,VH/2,1/1.18);
 document.getElementById("zReset").onclick=()=>{ZOOM=0.78;panX=0;panY=0;recalcCam();};
 const adminBtn=document.getElementById("adminBtn"),adminPanel=document.getElementById("adminPanel");
-adminBtn.onclick=()=>adminPanel.classList.toggle("show");
+adminBtn.onclick=(e)=>{if(e){e.preventDefault();e.stopPropagation();}adminPanel.classList.toggle("show");};
+adminBtn.addEventListener("pointerdown",e=>e.stopPropagation()); // не отдаём клик карте
 document.getElementById("apClose").onclick=()=>adminPanel.classList.remove("show");
 document.getElementById("apSet").onclick=()=>{S.ice=+document.getElementById("apIce").value||0;S.stone=+document.getElementById("apStone").value||0;S.gem=+document.getElementById("apGem").value||0;save();refreshTop();renderSide();toast("Ресурсы выданы");};
 const apInfRes=document.getElementById("apInfRes"),apInstaBuild=document.getElementById("apInstaBuild"),apInstaArmy=document.getElementById("apInstaArmy");
@@ -1685,7 +1697,8 @@ window.addEventListener("keydown",e=>{if(e.key==="Escape"){
   if(ob&&ob.classList.contains("show")){closeObDialog();return;}
   if(vl&&vl.classList.contains("show")){vl.classList.remove("show");return;}
   if(catEl.classList.contains("show")){closeCatalog();return;}
-  buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
+  buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");
+  if(e.key==="g"||e.key==="G"||e.key==="п"||e.key==="П")adminPanel.classList.toggle("show");}); // запасной способ открыть админку
 
 /* ===== СТАРТ ===== */
 let ICN={};
