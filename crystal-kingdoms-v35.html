@@ -896,7 +896,7 @@ function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),i
   const shw=w*0.6,shh=shw*0.34;ctx.drawImage(softShadow,cen[0]-shw/2,cen[1]+h*0.05-shh/2,shw,shh);  // тень
   if(img){const iw=img.width||img.naturalWidth,ih=img.height||img.naturalHeight;
     const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9,dx=cen[0]-W/2,dy=bottomY-H;
-    if(o===hoverObj){ctx.save();ctx.shadowColor="rgba(255,225,110,.95)";ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.restore();} // контур-свечение
+    if(o===hoverObj&&o.type==="lighthouse"&&!o.flip){ctx.save();ctx.shadowColor="rgba(255,225,110,.95)";ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.shadowBlur=16*ZOOM;ctx.drawImage(img,dx,dy,W,H);ctx.restore();} // контур-свечение только у маяка
     if(o.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,dx,dy,W,H);ctx.restore();}
     else ctx.drawImage(img,dx,dy,W,H);}}
 function drawBuilding(b){
@@ -1012,9 +1012,10 @@ function render(){
     else if(!moving&&hoverTile){
       const hb=buildingAt(hoverTile[0],hoverTile[1]);
       const ho=hb?null:((hoverPx&&obstacleAtScreen(hoverPx[0],hoverPx[1]))||obstacleAt(hoverTile[0],hoverTile[1]));
-      hoverObj=hb||ho;
+      const hl=(ho&&ho.type==="lighthouse")?ho:null;                  // подсвечиваем только маяк среди объектов
+      hoverObj=hb||hl;
       if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // все клетки здания
-      else if(ho)drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size);       // все клетки препятствия/маяка
+      else if(hl)drawFootprintHi(hl.gx,hl.gy,OB[hl.type].size);       // только маяк
       else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
@@ -1353,7 +1354,7 @@ function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гост
   const b=buildingAt(t[0],t[1]);
   if(b){sel=(b===sel)?null:b;renderSide();return;}
   const o=obstacleAtScreen(sx,sy)||obstacleAt(t[0],t[1]);
-  if(o){if(o.type==="lighthouse")openVisitList();else if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else removeObstaclePrompt(o);return;}
+  if(o){if(o.type==="lighthouse")openVisitList();else if(o.type==="chest")openChest(o);else if(o.type==="crystals")openCrystals(o);else if(o.beach||OB[o.type].beach){return;} /* пляжный декор не удаляется */ else removeObstaclePrompt(o);return;}
   sel=null;renderSide();}
 function buildingAt(gx,gy){let found=null,fz=-1;for(const b of S.buildings){const s=BT[b.type].size;
   if(gx>=b.gx&&gx<b.gx+s&&gy>=b.gy&&gy<b.gy+s){const z=b.gx+b.gy;if(z>fz){fz=z;found=b;}}}return found;}
