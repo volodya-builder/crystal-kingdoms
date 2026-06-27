@@ -401,10 +401,8 @@ function load(){
       if(S.research===undefined)S.research=null;
       offlineCatchup();}
   }catch(e){S=freshState();}
-  if(!S.obstacles)S.obstacles=genObstacles().concat(genBeachDecor());   // препятствия + пляжный декор
-  else{const need=["chest","boat","crates","dock","lighthouse"],beach=S.obstacles.filter(o=>o.beach),types=new Set(beach.map(o=>o.type));
-    if(beach.length!==need.length||!need.every(t=>types.has(t)))            // нормализуем: по одному пляжному объекту
-      S.obstacles=S.obstacles.filter(o=>!o.beach).concat(genBeachDecor());}
+  if(!S.obstacles)S.obstacles=genObstacles();                            // препятствия на острове
+  if(S.decoV!==2){S.obstacles=S.obstacles.filter(o=>!o.beach).concat(genBeachDecor());S.decoV=2;} // пляжный декор v2 (по одному + причал в воде)
 }
 let lastSave=0;
 function maybeSave(now){if(now-lastSave>4000){lastSave=now;save();}}
@@ -444,16 +442,18 @@ function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
 // ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
 const BEACH_M=5.1; // ширина пляжа в клетках (увеличена)
-const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock"},palm:{name:"Пальма",size:1,cost:400,img:"palm"},bush:{name:"Куст",size:1,cost:200,img:"bush"},
-  chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1}};
+const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
+  chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1,sc:0.95},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1,sc:0.95},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1,sc:0.6},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1,sc:1.1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1,sc:1.9}};
 // пляжный декор — по одному экземпляру каждого, на песке (за краем острова)
-function genBeachDecor(){const d=[],items=["chest","boat","crates","dock","lighthouse"],M=BEACH_M;
+function genBeachDecor(){const d=[],items=["chest","boat","crates","lighthouse"],M=BEACH_M;
   const free=(gx,gy,sz)=>{for(const o of d){const os=OB[o.type].size;if(gx<o.gx+os+1&&gx+sz+1>o.gx&&gy<o.gy+os+1&&gy+sz+1>o.gy)return false;}return true;};
   for(const t of items){const sz=OB[t].size;
     for(let k=0;k<60;k++){const gx=Math.round(-M+0.5+Math.random()*(GRID+2*M-2)),gy=Math.round(-M+0.5+Math.random()*(GRID+2*M-2));
       if(gx+sz>0&&gx<GRID&&gy+sz>0&&gy<GRID)continue;                 // не в траве
       if(gx<-M||gy<-M||gx+sz>GRID+M||gy+sz>GRID+M)continue;           // в пределах пляжа
       if(free(gx,gy,sz)){d.push({ob:true,beach:true,type:t,gx,gy});break;}}}
+  // причал — в воде у самого края пляжа, "присоединён" к острову
+  d.push({ob:true,beach:true,type:"dock",gx:Math.round(GRID*0.55),gy:Math.round(GRID+M-0.5)});
   return d;}
 function openChest(o){if(confirm("Открыть сундук? (+5000 Gold, +5 Ruby)")){
     const c=caps();S.ice=Math.min(c.ice,S.ice+5000);S.gem+=5;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Сундук открыт: +5000 Gold, +5 Ruby");}}
@@ -764,7 +764,7 @@ function spriteFX(b,cx,topY,W,H){const T=ANIM,ph=b.gx*0.7+b.gy*0.5;
 function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),img=decoCv[OB[o.type].img],w=sz*TW*ZOOM,h=w*0.5;
   const shw=w*0.6,shh=shw*0.34;ctx.drawImage(softShadow,cen[0]-shw/2,cen[1]+h*0.05-shh/2,shw,shh);  // тень
   if(img){const iw=img.width||img.naturalWidth,ih=img.height||img.naturalHeight;
-    const W=w*0.92,H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9;
+    const W=w*0.92*(OB[o.type].sc||1),H=W*(ih/iw),bottomY=cen[1]+sz*TH*ZOOM*0.5*0.9;
     ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}}
 function drawBuilding(b){
   drawPlot(b);
