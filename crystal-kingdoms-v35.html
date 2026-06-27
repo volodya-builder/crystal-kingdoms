@@ -702,7 +702,7 @@ function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.cr
   if(maxx<minx)return c;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
 ["rock","rock1","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 // полоса-переход вдоль ребра острова: верх картинки (трава/песок) — внутрь, прозрачный край — наружу
-function edgeStrip(g,img,P0,P1,inset,outset){
+function edgeStrip(g,img,P0,P1,inset,outset,alpha){
   if(!img||!img.complete||!img.naturalWidth)return;
   const ov=40,ddx=P1[0]-P0[0],ddy=P1[1]-P0[1],LL=Math.hypot(ddx,ddy)||1,ux=ddx/LL,uy=ddy/LL;
   const A=[P0[0]-ux*ov,P0[1]-uy*ov],B=[P1[0]+ux*ov,P1[1]+uy*ov];        // выходим за углы — без щелей
@@ -711,7 +711,7 @@ function edgeStrip(g,img,P0,P1,inset,outset){
   const Wi=img.naturalWidth,Hi=img.naturalHeight,span=inset+outset;
   const ax=dx/Wi,ay=dy/Wi,cx=nx*span/Hi,cy=ny*span/Hi;                 // оси картинки в мире
   const ex=A[0]+nx*(-inset),ey=A[1]+ny*(-inset);                       // верх картинки — на inset внутрь
-  g.save();g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
+  g.save();if(alpha!=null)g.globalAlpha=alpha;g.setTransform(ax,ay,cx,cy,ex,ey);g.drawImage(img,0,0);g.restore();
 }
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
@@ -722,7 +722,7 @@ function bakeGround(){
   // воду рисует CSS-фон холста (на весь экран) — в запекании только остров
   // ПЛЯЖ + пена (в 2 раза шире)
   const m=BEACH_M,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>bi(p[0],p[1]));
-  g.fillStyle="rgba(255,255,255,.45)";dia(beach.map(p=>[p[0],p[1]+5]));g.fill();
+  g.fillStyle="rgba(255,255,255,.18)";dia(beach.map(p=>[p[0],p[1]+5]));g.fill();
   g.save();dia(beach);g.clip();
   if(sandImg.complete&&sandImg.naturalWidth){const p=g.createPattern(sandImg,"repeat");try{p.setTransform(new DOMMatrix().scaleSelf(6*TW/sandImg.naturalWidth));}catch(e){}g.fillStyle=p;}
   else g.fillStyle="#e7d39a";
@@ -735,7 +735,7 @@ function bakeGround(){
   // мягкие переходы: песок→вода по краю пляжа, затем трава→песок по краю острова
   const Bc=[bi(-m,-m),bi(GRID+m,-m),bi(GRID+m,GRID+m),bi(-m,GRID+m)];   // углы пляжа
   const Gc=[bi(0,0),bi(GRID,0),bi(GRID,GRID),bi(0,GRID)];               // углы травяного острова
-  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],42,34);    // песок → вода
+  for(let i=0;i<4;i++)edgeStrip(g,shoreImg,Bc[i],Bc[(i+1)%4],58,64,0.5);// песок → вода (мягкая полупрозрачная пена)
   for(let i=0;i<4;i++)edgeStrip(g,grassEdgeImg,Gc[i],Gc[(i+1)%4],24,52);// трава → песок
   // декор теперь — объекты-препятствия (рисуются поверх, не в запекании)
   groundCanvas=cv2;groundBaked=true;
