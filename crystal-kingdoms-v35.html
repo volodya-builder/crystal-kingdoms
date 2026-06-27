@@ -533,7 +533,7 @@ function cropToContent(img){const w=img.naturalWidth,h=img.naturalHeight,c=docum
   let d;try{d=g.getImageData(0,0,w,h).data;}catch(e){return img;}
   let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
   if(maxx<minx)return img;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
-["rock","bush","palm"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=cropToContent(im);}catch(e){decoCv[k]=im;}bakeGround();};im.src="assets/"+k+".png";});
+["rock","bush","palm"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}bakeGround();};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   if(!decos)initDecos();
@@ -646,7 +646,6 @@ for(const k in SPRITE_FILES){const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy
   const rec={img:null,scale:c.scale,base:c.base,dy:c.dy,src:SPRITE_FILES[k],ready:false};SPRITES[k]=rec;
   const im=new Image();
   im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
-    try{rec.shadow=makeSilhouette(rec.img);}catch(e){}
     try{if(rec.img&&rec.img.toDataURL){rec.iconURL=rec.img.toDataURL();if(typeof ICN!=="undefined")ICN[k]=rec.iconURL;}}catch(e){}};
   im.onerror=function(){rec.ready=false;};
   im.src=SPRITE_FILES[k];}
@@ -656,8 +655,6 @@ function drawSpriteBuilding(b,spr){
   const cen=iso(b.gx+s/2,b.gy+s/2);
   const fw=s*TW*ZOOM,W=fw*spr.scale*SPRITE_FIT,H=W*(ih/iw);
   const bottomY=cen[1]+s*TH*ZOOM*0.5*spr.base*SPRITE_FIT+(spr.dy||0)*ZOOM;
-  // тень-силуэт здания, положенная на землю вправо
-  if(spr.shadow){ctx.save();ctx.globalAlpha=0.26;ctx.translate(cen[0],bottomY);ctx.transform(1,0,-0.5,-0.16,0,0);ctx.drawImage(spr.shadow,-W/2,-H,W,H);ctx.restore();}
   ctx.globalAlpha=b.built===false?0.7:1;
   if(b.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
@@ -711,9 +708,12 @@ function drawGoldMine(cx,cy,baseH,ph){const T=ANIM;
   ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.arc(cx-6*ZOOM,cy-baseH*0.45,2.4*ZOOM,Math.PI,0);ctx.fill();
   ctx.fillStyle="#2a1c0a";ctx.beginPath();ctx.arc(cx-9*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();ctx.beginPath();ctx.arc(cx-3*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();}
 // земляная площадка под зданием (как в Mavia)
-// силуэт-тень: чёрная копия спрайта (кладётся на землю с наклоном вправо)
-function makeSilhouette(src){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");g.drawImage(src,0,0);g.globalCompositeOperation="source-in";g.fillStyle="#000";g.fillRect(0,0,w,h);return c;}
+// мягкая плоская тень-овал (печётся один раз)
+const softShadow=(function(){const c=document.createElement("canvas");c.width=200;c.height=100;const g=c.getContext("2d");
+  const gr=g.createRadialGradient(100,50,2,100,50,96);gr.addColorStop(0,"rgba(0,0,0,.4)");gr.addColorStop(.6,"rgba(0,0,0,.2)");gr.addColorStop(1,"rgba(0,0,0,0)");
+  g.fillStyle=gr;g.beginPath();g.ellipse(100,50,98,48,0,0,7);g.fill();return c;})();
 function drawPlot(b){const s=BT[b.type].size,cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
+  const sw=w*0.6,sh=sw*0.34;ctx.drawImage(softShadow,cen[0]-sw/2,cen[1]+h*0.05-sh/2,sw,sh); // мягкая тень под основанием
   if(b.type==="wall")return;
   ctx.save();
   ctx.fillStyle="rgba(150,108,58,.85)";
