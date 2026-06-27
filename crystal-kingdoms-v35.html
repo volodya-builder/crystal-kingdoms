@@ -860,6 +860,23 @@ for(const k in SPRITE_FILES){const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy
     try{if(rec.img&&rec.img.toDataURL){rec.iconURL=rec.img.toDataURL();if(typeof ICN!=="undefined")ICN[k]=rec.iconURL;}}catch(e){}};
   im.onerror=function(){rec.ready=false;};
   im.src=SPRITE_FILES[k];}
+// ── Анимация нефтяной качалки: отдельный слой «балка» вращается вокруг оси ──
+// положи в assets/: stonepump.png (БЕЗ качающейся балки) и stonepump_beam.png (только балка, горизонтально)
+const pumpBeam={img:null,ready:false};
+(function(){const im=new Image();im.onload=function(){try{pumpBeam.img=keyOutWhite(im);}catch(e){pumpBeam.img=im;}pumpBeam.ready=true;};im.onerror=function(){pumpBeam.ready=false;};im.src="assets/stonepump_beam.png";})();
+// настройки качания (подбираются на глаз под арт):
+const PUMP={amp:0.14,speed:1.8,   // amp — размах качания (рад), speed — скорость
+  pivX:0.02,pivY:-0.26,           // ось качания относительно ЦЕНТРА спрайта (доли W и H; pivY<0 — выше центра)
+  bScale:0.66,                    // ширина балки относительно ширины футпринта
+  bpX:0.50,bpY:0.34};             // точка опоры ВНУТРИ картинки балки (доли её ширины/высоты)
+function drawPumpBeam(b,cen,W,H,bottomY){
+  if(!pumpBeam.ready||!pumpBeam.img)return;
+  const im=pumpBeam.img,bw=W*PUMP.bScale,bh=bw*((im.height||im.naturalHeight)/(im.width||im.naturalWidth));
+  const pvx=cen[0]+PUMP.pivX*W,pvy=(bottomY-H/2)+PUMP.pivY*H;       // экранная точка оси
+  const ang=Math.sin(ANIM*PUMP.speed+(b.gx*0.6+b.gy*0.4))*PUMP.amp; // плавное качание, у каждой свой сдвиг фазы
+  ctx.save();ctx.translate(pvx,pvy);if(b.flip)ctx.scale(-1,1);ctx.rotate(ang);
+  ctx.drawImage(im,-PUMP.bpX*bw,-PUMP.bpY*bh,bw,bh);ctx.restore();
+}
 function drawSpriteBuilding(b,spr){
   const s=BT[b.type].size,img=spr.img;
   const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
@@ -873,6 +890,7 @@ function drawSpriteBuilding(b,spr){
   if(b===hoverObj){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter"; // очень лёгкая подсветка при наведении
     if(b.flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);}
     ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
+  if(b.type==="stonepump"&&b.built!==false)drawPumpBeam(b,cen,W,H,bottomY); // анимированная балка качалки
   if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
     ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cen[0],by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
