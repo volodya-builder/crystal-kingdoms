@@ -228,6 +228,7 @@
         <label>Oil <input id="apStone" type="number" value="200000"></label>
         <label>Ruby <input id="apGem" type="number" value="9000"></label>
         <button class="btn up" id="apSet">Выдать ресурсы</button>
+        <button class="btn up" id="apMaxAll" style="margin-top:7px">🏗 Построить всё (макс)</button>
         <button class="btn ghost" id="apReset" style="margin-top:7px">Сбросить игру</button>
         <button class="btn ghost" id="apClose" style="margin-top:7px">Закрыть</button>
       </div>
@@ -1383,6 +1384,27 @@ function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!
 apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();renderSide();toast(apInfRes.checked?"Бесконечные ресурсы: вкл":"Бесконечные ресурсы: выкл");};
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
+// мгновенно отстроить полную базу на максимальном уровне
+function buildAllMax(){
+  // занятость клеток
+  const occ=Array.from({length:GRID},()=>new Uint8Array(GRID));
+  const mark=(gx,gy,s)=>{for(let y=gy;y<gy+s;y++)for(let x=gx;x<gx+s;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)occ[y][x]=1;};
+  for(const b of S.buildings)mark(b.gx,b.gy,BT[b.type].size);
+  const findSpot=s=>{for(let gy=0;gy+s<=GRID;gy++)for(let gx=0;gx+s<=GRID;gx++){let free=true;
+    for(let y=gy;y<gy+s&&free;y++)for(let x=gx;x<gx+s;x++)if(occ[y][x]){free=false;break;}
+    if(free)return[gx,gy];}return null;};
+  // 1) все существующие здания (включая HQ) — в максимум
+  for(const b of S.buildings){const maxL=b.type==="hq"?HQ_MAX:BT[b.type].lv.length-1;applyLevel(b,maxL);b.built=true;b.buildEnd=0;b._upTo=null;}
+  // 2) доставить недостающие до лимита (HQ уже максимум → лимиты максимальные)
+  const order=["icemine","stonepump","icestore","stonestore","camp","factory","hangar","lab","altar","flame","aa","mortar","wall"];
+  let added=0;
+  for(const type of order){const d=BT[type],maxL=d.lv.length-1,lim=limitFor(type);
+    for(let have=countType(type);have<lim;have++){const sp=findSpot(d.size);if(!sp)break;
+      const b={type,gx:sp[0],gy:sp[1],level:1,hp:0,maxhp:0,built:true,buildEnd:0,cd:0};
+      S.buildings.push(b);applyLevel(b,maxL);mark(sp[0],sp[1],d.size);added++;}}
+  save();refreshTop();renderSide();toast("База отстроена: +"+added+" зданий, всё на максимуме");
+}
+document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){if(catEl.classList.contains("show")){closeCatalog();return;}buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");});
 
