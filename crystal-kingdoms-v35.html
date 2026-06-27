@@ -516,6 +516,10 @@ grassBase.onload=function(){
 };
 grassBase.onerror=function(){};
 grassBase.src="assets/grass.png";
+// текстуры воды и песка (если положишь — заменят процедурную заливку)
+let waterPattern=null,waterTexW=512,sandPattern=null,sandTexW=512;
+const waterImg=new Image();waterImg.onload=function(){try{waterPattern=ctx.createPattern(waterImg,"repeat");waterTexW=waterImg.naturalWidth||512;}catch(e){}};waterImg.src="assets/water.png";
+const sandImg=new Image();sandImg.onload=function(){try{sandPattern=ctx.createPattern(sandImg,"repeat");sandTexW=sandImg.naturalWidth||512;}catch(e){}};sandImg.src="assets/sand.png";
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
@@ -533,17 +537,24 @@ function bakeGround(){
 function diamond(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<4;i++)ctx.lineTo(p[i][0],p[i][1]);ctx.closePath();}
 function drawGround(){
   const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
-  // ВОДА вокруг острова
-  const wg=ctx.createLinearGradient(0,0,0,VH);wg.addColorStop(0,"#1f74ad");wg.addColorStop(1,"#0d4a80");
-  ctx.fillStyle=wg;ctx.fillRect(0,0,VW,VH);
-  ctx.save();ctx.globalAlpha=0.09;ctx.strokeStyle="#cdeeff";ctx.lineWidth=2;
+  // ВОДА вокруг острова (текстура с медленным движением, либо градиент)
+  if(waterPattern){const s=ZOOM*(10*TW/waterTexW);
+    try{waterPattern.setTransform(new DOMMatrix().translateSelf((ANIM*12)%4096,(ANIM*6)%4096).scaleSelf(s));}catch(e){}
+    ctx.fillStyle=waterPattern;}
+  else{const wg=ctx.createLinearGradient(0,0,0,VH);wg.addColorStop(0,"#1f74ad");wg.addColorStop(1,"#0d4a80");ctx.fillStyle=wg;}
+  ctx.fillRect(0,0,VW,VH);
+  ctx.save();ctx.globalAlpha=0.07;ctx.strokeStyle="#cdeeff";ctx.lineWidth=2;   // лёгкий блеск волн поверх
   for(let i=0;i<9;i++){const yy=((ANIM*16+i*88)%(VH+120))-60;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(VW,yy+26);ctx.stroke();}
   ctx.restore();
-  // ПЛЯЖ (диамант чуть больше поля) + пена
+  // ПЛЯЖ (диамант чуть больше поля) + пена у берега
   const m=1.7,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>iso(p[0],p[1]));
-  ctx.fillStyle="rgba(255,255,255,.35)";diamond(beach.map(p=>[p[0],p[1]+4*ZOOM]));ctx.fill();      // пена
-  ctx.fillStyle="#e7d39a";diamond(beach);ctx.fill();                                                // песок
-  ctx.fillStyle="#d8be7e";diamond(beach.map((p,i)=>[p[0]*0.985+c[i][0]*0.015,p[1]*0.985+c[i][1]*0.015]));ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.4)";diamond(beach.map(p=>[p[0],p[1]+5*ZOOM]));ctx.fill();        // пена
+  ctx.save();diamond(beach);ctx.clip();
+  if(sandPattern){const s=ZOOM*(6*TW/sandTexW);
+    try{sandPattern.setTransform(new DOMMatrix().translateSelf(oX,oY).scaleSelf(s));}catch(e){}
+    ctx.fillStyle=sandPattern;}
+  else ctx.fillStyle="#e7d39a";
+  ctx.fillRect(0,0,VW,VH);ctx.restore();
   if(groundBaked){
     ctx.drawImage(groundCanvas,oX-G_BOX*ZOOM,oY-G_BOY*ZOOM,G_BAKE_W*ZOOM,G_BAKE_H*ZOOM);
   }else{
