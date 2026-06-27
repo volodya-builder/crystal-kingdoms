@@ -817,7 +817,7 @@ const SPRITES={};
 for(const k in SPRITE_SRC){const im=new Image();im.src=SPRITE_SRC[k];const c=SPRITE_CFG[k]||{scale:0.92,base:1,dy:0};SPRITES[k]={img:im,scale:c.scale,base:c.base,dy:c.dy,src:SPRITE_SRC[k]};}
 // PNG-арты зданий из папки assets/ (переопределяют base64, добавляют новые). Положи файлы с такими именами.
 const SPRITE_FILES={
-  hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png",
+  hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png?v=3",
   icestore:"assets/icestore.png", stonestore:"assets/stonestore.png", camp:"assets/camp.png",
   factory:"assets/factory.png", hangar:"assets/hangar.png", lab:"assets/lab.png", altar:"assets/altar.png",
   flame:"assets/flame.png", aa:"assets/aa.png", mortar:"assets/mortar.png", wall:"assets/wall.png"
@@ -863,7 +863,7 @@ for(const k in SPRITE_FILES){const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy
 // ── Анимация нефтяной качалки: отдельный слой «балка» вращается вокруг оси ──
 // положи в assets/: stonepump.png (БЕЗ качающейся балки) и stonepump_beam.png (только балка, горизонтально)
 const pumpBeam={img:null,ready:false};
-(function(){const im=new Image();im.onload=function(){try{pumpBeam.img=keyOutWhite(im);}catch(e){pumpBeam.img=im;}pumpBeam.ready=true;};im.onerror=function(){pumpBeam.ready=false;};im.src="assets/stonepump_beam.png";})();
+(function(){const im=new Image();im.onload=function(){try{pumpBeam.img=keyOutWhite(im);}catch(e){pumpBeam.img=im;}pumpBeam.ready=true;};im.onerror=function(){pumpBeam.ready=false;};im.src="assets/stonepump_beam.png?v=3";})();
 // настройки качания (подбираются на глаз под арт):
 const PUMP={amp:0.10,speed:1.7,   // amp — размах качания (рад), speed — скорость
   pivX:0.02,pivY:-0.40,           // ось качания относительно ЦЕНТРА спрайта (доли W и H; pivY<0 — выше центра)
