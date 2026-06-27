@@ -527,6 +527,13 @@ grassBase.src="assets/grass.png";
 let waterPattern=null,waterTexW=512,sandPattern=null,sandTexW=512;
 const waterImg=new Image();waterImg.onload=function(){bakeGround();};waterImg.src="assets/water.png";
 const sandImg=new Image();sandImg.onload=function(){bakeGround();};sandImg.src="assets/sand.png";
+// PNG-декорации (прозрачный фон): камни, куст, пальма
+const decoCv={};
+function cropToContent(img){const w=img.naturalWidth,h=img.naturalHeight,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");g.drawImage(img,0,0);
+  let d;try{d=g.getImageData(0,0,w,h).data;}catch(e){return img;}
+  let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>12){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
+  if(maxx<minx)return img;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
+["rock","bush","palm"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=cropToContent(im);}catch(e){decoCv[k]=im;}bakeGround();};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   if(!decos)initDecos();
@@ -547,8 +554,12 @@ function bakeGround(){
     const A=bi(gx,gy),B=bi(gx+1,gy),C=bi(gx+1,gy+1),D=bi(gx,gy+1);
     g.save();g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.lineTo(C[0],C[1]);g.lineTo(D[0],D[1]);g.closePath();g.clip();
     g.drawImage(((gx+gy)&1)?grassGreenCv:grassLightCv,A[0]-TW/2-0.5,A[1]-0.5,TW+1,TH+1);g.restore();}
-  // ДЕКОР
-  for(const d of decos){const[x,y]=bi(d.gx,d.gy);if(d.t===0)drawRock(g,x,y,d.s,1);else drawBush(g,x,y,d.s,1);}
+  // ДЕКОР (PNG камни/куст/пальма; запасной — процедурные)
+  const DKEY={0:"rock",1:"bush",2:"palm"},DW={0:84,1:56,2:92};
+  for(const d of decos){const[x,y]=bi(d.gx,d.gy),cv=decoCv[DKEY[d.t]];
+    if(cv){const cw=cv.width||cv.naturalWidth,ch=cv.height||cv.naturalHeight,W2=DW[d.t]*d.s,H2=W2*(ch/cw);
+      g.drawImage(cv,x-W2/2,y-H2+H2*0.06,W2,H2);}
+    else{if(d.t===0)drawRock(g,x,y,d.s,1);else drawBush(g,x,y,d.s,1);}}
   groundCanvas=cv2;groundBaked=true;
 }
 function drawGround(){
@@ -570,7 +581,8 @@ let decos=null;
 function initDecos(){decos=[];const cx=GRID/2,cy=GRID/2;
   for(let i=0;i<46;i++){const gx=2+Math.random()*(GRID-4),gy=2+Math.random()*(GRID-4);
     if(Math.hypot(gx-cx,gy-cy)<7)continue;                 // не в центре (где база)
-    decos.push({gx,gy,t:Math.random()<0.5?0:1,s:0.8+Math.random()*0.7});}
+    const r=Math.random(),t=r<0.4?0:(r<0.78?1:2);          // 0 камни, 1 куст, 2 пальма
+    decos.push({gx,gy,t,s:0.8+Math.random()*0.6});}
 }
 function drawRock(g,x,y,sc,z){const r=9*z*sc;
   g.fillStyle="rgba(8,24,12,.22)";g.beginPath();g.ellipse(x,y+r*0.5,r*1.1,r*0.45,0,0,7);g.fill();
@@ -634,6 +646,7 @@ for(const k in SPRITE_FILES){const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy
   const rec={img:null,scale:c.scale,base:c.base,dy:c.dy,src:SPRITE_FILES[k],ready:false};SPRITES[k]=rec;
   const im=new Image();
   im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
+    try{rec.shadow=makeSilhouette(rec.img);}catch(e){}
     try{if(rec.img&&rec.img.toDataURL){rec.iconURL=rec.img.toDataURL();if(typeof ICN!=="undefined")ICN[k]=rec.iconURL;}}catch(e){}};
   im.onerror=function(){rec.ready=false;};
   im.src=SPRITE_FILES[k];}
@@ -643,6 +656,8 @@ function drawSpriteBuilding(b,spr){
   const cen=iso(b.gx+s/2,b.gy+s/2);
   const fw=s*TW*ZOOM,W=fw*spr.scale*SPRITE_FIT,H=W*(ih/iw);
   const bottomY=cen[1]+s*TH*ZOOM*0.5*spr.base*SPRITE_FIT+(spr.dy||0)*ZOOM;
+  // тень-силуэт здания, положенная на землю вправо
+  if(spr.shadow){ctx.save();ctx.globalAlpha=0.26;ctx.translate(cen[0],bottomY);ctx.transform(1,0,-0.5,-0.16,0,0);ctx.drawImage(spr.shadow,-W/2,-H,W,H);ctx.restore();}
   ctx.globalAlpha=b.built===false?0.7:1;
   if(b.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
@@ -696,14 +711,9 @@ function drawGoldMine(cx,cy,baseH,ph){const T=ANIM;
   ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.arc(cx-6*ZOOM,cy-baseH*0.45,2.4*ZOOM,Math.PI,0);ctx.fill();
   ctx.fillStyle="#2a1c0a";ctx.beginPath();ctx.arc(cx-9*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();ctx.beginPath();ctx.arc(cx-3*ZOOM,cy-baseH*0.45+5*ZOOM,1.5*ZOOM,0,7);ctx.fill();}
 // земляная площадка под зданием (как в Mavia)
-// мягкая тень-спрайт, запекается один раз (drawImage дёшев, мягкие края)
-const shadowSprite=(function(){const c=document.createElement("canvas");c.width=160;c.height=80;const g=c.getContext("2d");
-  const gr=g.createRadialGradient(80,40,4,80,40,76);gr.addColorStop(0,"rgba(0,0,0,.5)");gr.addColorStop(.55,"rgba(0,0,0,.3)");gr.addColorStop(1,"rgba(0,0,0,0)");
-  g.fillStyle=gr;g.beginPath();g.ellipse(80,40,78,38,0,0,7);g.fill();return c;})();
+// силуэт-тень: чёрная копия спрайта (кладётся на землю с наклоном вправо)
+function makeSilhouette(src){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d");g.drawImage(src,0,0);g.globalCompositeOperation="source-in";g.fillStyle="#000";g.fillRect(0,0,w,h);return c;}
 function drawPlot(b){const s=BT[b.type].size,cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
-  // аккуратная тень под основанием, чуть смещена вправо
-  const sw=w*0.66,sh=sw*0.42;
-  ctx.drawImage(shadowSprite,cen[0]-sw/2+w*0.10,cen[1]-sh/2+h*0.10,sw,sh);
   if(b.type==="wall")return;
   ctx.save();
   ctx.fillStyle="rgba(150,108,58,.85)";
