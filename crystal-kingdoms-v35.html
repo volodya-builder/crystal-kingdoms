@@ -501,15 +501,16 @@ grassImg.onload=function(){try{grassPattern=ctx.createPattern(grassImg,"repeat")
 grassImg.src=GRASS_SRC;
 // ШАХМАТНАЯ ТРАВА: из одной текстуры делаем светлый и зелёный варианты
 const G_BOX=GRID*TW/2,G_BOY=GRID*TH/2,G_BAKE_W=GRID*TW,G_BAKE_H=GRID*TH;
-let groundCanvas=null,groundBaked=false,grassLightCv=null,grassGreenCv=null;
+let groundCanvas=null,groundBaked=false,grassLightCv=null,grassGreenCv=null,grassTexW=512;
 const grassBase=new Image();
+// из одной травы делаем шахматку: светлая клетка = оригинал, тёмная = слегка затемнённый оттенок
 grassBase.onload=function(){
-  const w=grassBase.naturalWidth,h=grassBase.naturalHeight;
+  const w=grassBase.naturalWidth,h=grassBase.naturalHeight;grassTexW=w;
   grassLightCv=document.createElement("canvas");grassLightCv.width=w;grassLightCv.height=h;
   grassLightCv.getContext("2d").drawImage(grassBase,0,0);
   grassGreenCv=document.createElement("canvas");grassGreenCv.width=w;grassGreenCv.height=h;
   const gg=grassGreenCv.getContext("2d");gg.drawImage(grassBase,0,0);
-  gg.globalCompositeOperation="multiply";gg.fillStyle="#6fae34";gg.fillRect(0,0,w,h);
+  gg.globalCompositeOperation="multiply";gg.fillStyle="#bfe06a";gg.fillRect(0,0,w,h); // оттенок 2-й клетки (можно докрутить)
   gg.globalCompositeOperation="source-over";
   bakeGround();
 };
@@ -535,7 +536,7 @@ function drawGround(){
     ctx.drawImage(groundCanvas,oX-G_BOX*ZOOM,oY-G_BOY*ZOOM,G_BAKE_W*ZOOM,G_BAKE_H*ZOOM);
   }else{
     ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();
-    if(grassPattern){const s=ZOOM*0.26;
+    if(grassPattern){const s=ZOOM*(8*TW/grassTexW);   // одна текстура ≈ 8 клеток поля
       try{grassPattern.setTransform(new DOMMatrix().translateSelf(oX,oY).scaleSelf(s));}catch(e){}
       ctx.fillStyle=grassPattern;}
     else ctx.fillStyle="#6cae3e";
