@@ -501,7 +501,7 @@ let grassPattern=null;const grassImg=new Image();
 grassImg.onload=function(){try{grassPattern=ctx.createPattern(grassImg,"repeat");}catch(e){}};
 grassImg.src=GRASS_SRC;
 // ШАХМАТНАЯ ТРАВА: из одной текстуры делаем светлый и зелёный варианты
-const G_BOX=GRID*TW/2,G_BOY=GRID*TH/2,G_BAKE_W=GRID*TW,G_BAKE_H=GRID*TH;
+const G_MW=7;const G_BOX=(GRID+2*G_MW)*TW/2,G_BOY=(GRID+2*G_MW)*TH/2,G_BAKE_W=(GRID+2*G_MW)*TW,G_BAKE_H=(GRID+2*G_MW)*TH;
 let groundCanvas=null,groundBaked=false,grassLightCv=null,grassGreenCv=null,grassTexW=512;
 const grassBase=new Image();
 // из одной травы делаем шахматку: светлая клетка = оригинал, тёмная = слегка затемнённый оттенок
@@ -519,64 +519,51 @@ grassBase.onerror=function(){};
 grassBase.src="assets/grass.png";
 // текстуры воды и песка (если положишь — заменят процедурную заливку)
 let waterPattern=null,waterTexW=512,sandPattern=null,sandTexW=512;
-const waterImg=new Image();waterImg.onload=function(){try{waterPattern=ctx.createPattern(waterImg,"repeat");waterTexW=waterImg.naturalWidth||512;}catch(e){}};waterImg.src="assets/water.png";
-const sandImg=new Image();sandImg.onload=function(){try{sandPattern=ctx.createPattern(sandImg,"repeat");sandTexW=sandImg.naturalWidth||512;}catch(e){}};sandImg.src="assets/sand.png";
+const waterImg=new Image();waterImg.onload=function(){bakeGround();};waterImg.src="assets/water.png";
+const sandImg=new Image();sandImg.onload=function(){bakeGround();};sandImg.src="assets/sand.png";
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
+  if(!decos)initDecos();
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
   const g=cv2.getContext("2d");
   const bi=(gx,gy)=>[G_BOX+(gx-gy)*(TW/2),G_BOY+((gx+gy)-GRID)*(TH/2)];
+  const dia=p=>{g.beginPath();g.moveTo(p[0][0],p[0][1]);for(let i=1;i<4;i++)g.lineTo(p[i][0],p[i][1]);g.closePath();};
+  // ВОДА (ограниченный пояс)
+  const water=[[-G_MW,-G_MW],[GRID+G_MW,-G_MW],[GRID+G_MW,GRID+G_MW],[-G_MW,GRID+G_MW]].map(p=>bi(p[0],p[1]));
+  g.save();dia(water);g.clip();
+  if(waterImg.complete&&waterImg.naturalWidth){const p=g.createPattern(waterImg,"repeat");try{p.setTransform(new DOMMatrix().scaleSelf(10*TW/waterImg.naturalWidth));}catch(e){}g.fillStyle=p;}
+  else g.fillStyle="#1f74ad";
+  g.fillRect(0,0,G_BAKE_W,G_BAKE_H);g.restore();
+  // ПЛЯЖ + пена
+  const m=1.7,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>bi(p[0],p[1]));
+  g.fillStyle="rgba(255,255,255,.45)";dia(beach.map(p=>[p[0],p[1]+5]));g.fill();
+  g.save();dia(beach);g.clip();
+  if(sandImg.complete&&sandImg.naturalWidth){const p=g.createPattern(sandImg,"repeat");try{p.setTransform(new DOMMatrix().scaleSelf(6*TW/sandImg.naturalWidth));}catch(e){}g.fillStyle=p;}
+  else g.fillStyle="#e7d39a";
+  g.fillRect(0,0,G_BAKE_W,G_BAKE_H);g.restore();
+  // ТРАВА (шахматка)
   for(let gy=0;gy<GRID;gy++)for(let gx=0;gx<GRID;gx++){
     const A=bi(gx,gy),B=bi(gx+1,gy),C=bi(gx+1,gy+1),D=bi(gx,gy+1);
     g.save();g.beginPath();g.moveTo(A[0],A[1]);g.lineTo(B[0],B[1]);g.lineTo(C[0],C[1]);g.lineTo(D[0],D[1]);g.closePath();g.clip();
-    const tex=((gx+gy)&1)?grassGreenCv:grassLightCv;
-    g.drawImage(tex,A[0]-TW/2-0.5,A[1]-0.5,TW+1,TH+1);
-    g.restore();
-  }
+    g.drawImage(((gx+gy)&1)?grassGreenCv:grassLightCv,A[0]-TW/2-0.5,A[1]-0.5,TW+1,TH+1);g.restore();}
+  // ДЕКОР
+  for(const d of decos){const[x,y]=bi(d.gx,d.gy);if(d.t===0)drawRock(g,x,y,d.s,1);else drawBush(g,x,y,d.s,1);}
   groundCanvas=cv2;groundBaked=true;
 }
-function diamond(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<4;i++)ctx.lineTo(p[i][0],p[i][1]);ctx.closePath();}
 function drawGround(){
   const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
-  // ВОДА — ограниченный пояс вокруг острова (а не весь бесконечный экран)
-  const mw=7,water=[[-mw,-mw],[GRID+mw,-mw],[GRID+mw,GRID+mw],[-mw,GRID+mw]].map(p=>iso(p[0],p[1]));
-  ctx.save();diamond(water);ctx.clip();
-  if(waterPattern){const s=ZOOM*(10*TW/waterTexW);
-    try{waterPattern.setTransform(new DOMMatrix().translateSelf(oX,oY).scaleSelf(s));}catch(e){}
-    ctx.fillStyle=waterPattern;}
-  else ctx.fillStyle="#1f74ad";
-  ctx.fillRect(0,0,VW,VH);ctx.restore();
-  // ПЛЯЖ (диамант чуть больше поля) + пена у берега
-  const m=1.7,beach=[[-m,-m],[GRID+m,-m],[GRID+m,GRID+m],[-m,GRID+m]].map(p=>iso(p[0],p[1]));
-  ctx.fillStyle="rgba(255,255,255,.4)";diamond(beach.map(p=>[p[0],p[1]+5*ZOOM]));ctx.fill();        // пена
-  ctx.save();diamond(beach);ctx.clip();
-  if(sandPattern){const s=ZOOM*(6*TW/sandTexW);
-    try{sandPattern.setTransform(new DOMMatrix().translateSelf(oX,oY).scaleSelf(s));}catch(e){}
-    ctx.fillStyle=sandPattern;}
-  else ctx.fillStyle="#e7d39a";
-  ctx.fillRect(0,0,VW,VH);ctx.restore();
   if(groundBaked){
-    ctx.drawImage(groundCanvas,oX-G_BOX*ZOOM,oY-G_BOY*ZOOM,G_BAKE_W*ZOOM,G_BAKE_H*ZOOM);
+    ctx.drawImage(groundCanvas,oX-G_BOX*ZOOM,oY-G_BOY*ZOOM,G_BAKE_W*ZOOM,G_BAKE_H*ZOOM);  // вся статичная сцена — один блит
   }else{
     ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();
-    if(grassPattern){const s=ZOOM*(8*TW/grassTexW);   // одна текстура ≈ 8 клеток поля
-      try{grassPattern.setTransform(new DOMMatrix().translateSelf(oX,oY).scaleSelf(s));}catch(e){}
-      ctx.fillStyle=grassPattern;}
-    else ctx.fillStyle="#6cae3e";
-    ctx.fill();
+    ctx.fillStyle="#6cae3e";ctx.fill();
   }
-  // лёгкая виньетка к краям острова
+  // виньетка (дёшево, 1 градиент за кадр)
   const cen=iso(GRID/2,GRID/2);
   const grad=ctx.createRadialGradient(cen[0],cen[1],GRID*8*ZOOM,cen[0],cen[1],GRID*22*ZOOM);
-  grad.addColorStop(0,"rgba(0,0,0,0)");grad.addColorStop(1,"rgba(8,24,12,.35)");
+  grad.addColorStop(0,"rgba(0,0,0,0)");grad.addColorStop(1,"rgba(8,24,12,.3)");
   ctx.save();ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.clip();
   ctx.fillStyle=grad;ctx.fill();ctx.restore();
-  // декор: камни и кустики на пустой траве (как в Mavia)
-  if(!decos)initDecos();
-  for(const d of decos){const[x,y]=iso(d.gx,d.gy);if(d.t===0)drawRock(x,y,d.s);else drawBush(x,y,d.s);}
-  // песчаная кромка
-  ctx.strokeStyle="rgba(214,190,120,.55)";ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();
 }
 let decos=null;
 function initDecos(){decos=[];const cx=GRID/2,cy=GRID/2;
@@ -584,15 +571,15 @@ function initDecos(){decos=[];const cx=GRID/2,cy=GRID/2;
     if(Math.hypot(gx-cx,gy-cy)<7)continue;                 // не в центре (где база)
     decos.push({gx,gy,t:Math.random()<0.5?0:1,s:0.8+Math.random()*0.7});}
 }
-function drawRock(x,y,sc){const r=9*ZOOM*sc;
-  ctx.fillStyle="rgba(8,24,12,.22)";ctx.beginPath();ctx.ellipse(x,y+r*0.5,r*1.1,r*0.45,0,0,7);ctx.fill();   // тень
-  ctx.fillStyle="#8b8f96";ctx.beginPath();ctx.ellipse(x,y,r,r*0.7,0,0,7);ctx.fill();
-  ctx.fillStyle="#a7abb2";ctx.beginPath();ctx.ellipse(x-r*0.2,y-r*0.25,r*0.6,r*0.4,0,0,7);ctx.fill();        // блик
-  ctx.fillStyle="#6f747b";ctx.beginPath();ctx.ellipse(x+r*0.4,y+r*0.2,r*0.45,r*0.3,0,0,7);ctx.fill();}
-function drawBush(x,y,sc){const r=8*ZOOM*sc;
-  ctx.fillStyle="rgba(8,24,12,.20)";ctx.beginPath();ctx.ellipse(x,y+r*0.5,r*1.1,r*0.4,0,0,7);ctx.fill();
-  ctx.fillStyle="#3f7a26";for(const o of [[-0.5,0],[0.5,0],[0,-0.4]]){ctx.beginPath();ctx.arc(x+o[0]*r,y+o[1]*r,r*0.7,0,7);ctx.fill();}
-  ctx.fillStyle="#5aa336";for(const o of [[-0.4,-0.15],[0.45,-0.1],[0.05,-0.5]]){ctx.beginPath();ctx.arc(x+o[0]*r,y+o[1]*r,r*0.4,0,7);ctx.fill();}}
+function drawRock(g,x,y,sc,z){const r=9*z*sc;
+  g.fillStyle="rgba(8,24,12,.22)";g.beginPath();g.ellipse(x,y+r*0.5,r*1.1,r*0.45,0,0,7);g.fill();
+  g.fillStyle="#8b8f96";g.beginPath();g.ellipse(x,y,r,r*0.7,0,0,7);g.fill();
+  g.fillStyle="#a7abb2";g.beginPath();g.ellipse(x-r*0.2,y-r*0.25,r*0.6,r*0.4,0,0,7);g.fill();
+  g.fillStyle="#6f747b";g.beginPath();g.ellipse(x+r*0.4,y+r*0.2,r*0.45,r*0.3,0,0,7);g.fill();}
+function drawBush(g,x,y,sc,z){const r=8*z*sc;
+  g.fillStyle="rgba(8,24,12,.20)";g.beginPath();g.ellipse(x,y+r*0.5,r*1.1,r*0.4,0,0,7);g.fill();
+  g.fillStyle="#3f7a26";for(const o of [[-0.5,0],[0.5,0],[0,-0.4]]){g.beginPath();g.arc(x+o[0]*r,y+o[1]*r,r*0.7,0,7);g.fill();}
+  g.fillStyle="#5aa336";for(const o of [[-0.4,-0.15],[0.45,-0.1],[0.05,-0.5]]){g.beginPath();g.arc(x+o[0]*r,y+o[1]*r,r*0.4,0,7);g.fill();}}
 
 /* ===== ОТРИСОВКА ЗДАНИЙ ===== */
 /* ===== СПРАЙТЫ ЗДАНИЙ (демо-текстуры) ===== */
