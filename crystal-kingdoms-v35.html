@@ -955,7 +955,11 @@ function render(){
   }else if(mode==="build"||!war){
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
     if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
-    else if(!moving&&hoverTile){const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}
+    else if(!moving&&hoverTile){
+      const hb=buildingAt(hoverTile[0],hoverTile[1]),ho=hb?null:obstacleAt(hoverTile[0],hoverTile[1]);
+      if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // все клетки здания
+      else if(ho)drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size);       // все клетки препятствия/маяка
+      else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
@@ -975,6 +979,7 @@ function render(){
   }
   positionFloatBar();
 }
+function drawFootprintHi(gx,gy,s){for(let y=0;y<s;y++)for(let x=0;x<s;x++)drawHoverCell(gx+x,gy+y);}
 function drawHoverCell(gx,gy){const[cx,cy]=iso(gx+0.5,gy+0.5),wpx=TW*ZOOM,h=wpx*0.5;
   ctx.save();ctx.fillStyle="rgba(230,185,74,.16)";ctx.strokeStyle="rgba(230,185,74,.9)";ctx.lineWidth=2;
   ctx.beginPath();ctx.moveTo(cx,cy-h/2);ctx.lineTo(cx+wpx/2,cy);ctx.lineTo(cx,cy+h/2);ctx.lineTo(cx-wpx/2,cy);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();}
