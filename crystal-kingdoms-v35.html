@@ -456,7 +456,7 @@ function load(){
       offlineCatchup();}
   }catch(e){S=freshState();}
   if(!S.obstacles)S.obstacles=genObstacles();                            // препятствия на острове
-  if(S.decoV!==4){S.obstacles=S.obstacles.filter(o=>!o.beach).concat(genBeachDecor());S.decoV=4;} // v4: без кристаллов, ящики/лодка у причала
+  if(S.decoV!==5){S.obstacles=genObstacles().concat(genBeachDecor());S.decoV=5;} // v5: камни 4 + мелких камней 8, пересобираем препятствия
 }
 let lastSave=0;
 function maybeSave(now){if(now-lastSave>4000){lastSave=now;save();}}
@@ -496,7 +496,7 @@ function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
 // ПРЕПЯТСТВИЯ: камень 2×2, пальма 1×1, куст 1×1. Занимают клетки, убираются за Gold.
 const BEACH_M=5.1; // ширина пляжа в клетках (увеличена)
-const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
+const OB={rock:{name:"Камни",size:2,cost:1500,img:"rock",sc:1.0},rock1:{name:"Камень",size:1,cost:300,img:"rock1",sc:1.0},palm:{name:"Пальма",size:1,cost:400,img:"palm",sc:1.2},bush:{name:"Куст",size:1,cost:200,img:"bush",sc:1.0},
   chest:{name:"Сундук",size:1,cost:0,img:"chest",beach:1,sc:0.95},boat:{name:"Лодка",size:2,cost:300,img:"boat",beach:1,sc:0.95},crates:{name:"Ящики",size:2,cost:250,img:"crates",beach:1,sc:0.6},dock:{name:"Причал",size:2,cost:400,img:"dock",beach:1,sc:1.1},lighthouse:{name:"Маяк",size:1,cost:600,img:"lighthouse",beach:1,sc:1.9},
   shells:{name:"Ракушки",size:1,cost:150,img:"shells",beach:1,sc:1.0},crystals:{name:"Кристаллы",size:1,cost:0,img:"crystals",beach:1,sc:1.1},anchor:{name:"Якорь",size:1,cost:200,img:"anchor",beach:1,sc:1.0},umbrella:{name:"Зонт",size:1,cost:200,img:"umbrella",beach:1,sc:1.15}};
 // пляжный декор — по одному экземпляру каждого, на песке (за краем острова)
@@ -523,9 +523,10 @@ function genObstacles(){const obs=[];
   const free=(gx,gy,sz)=>{if(gx<1||gy<1||gx+sz>GRID-1||gy+sz>GRID-1)return false;
     for(const b of S.buildings){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+sz>b.gx&&gy<b.gy+bs&&gy+sz>b.gy)return false;}
     for(const o of obs){const os=OB[o.type].size;if(gx<o.gx+os&&gx+sz>o.gx&&gy<o.gy+os&&gy+sz>o.gy)return false;}return true;};
-  for(let i=0;i<20;i++){const r=Math.random(),t=r<0.3?"rock":(r<0.66?"palm":"bush"),sz=OB[t].size;
-    for(let k=0;k<25;k++){const gx=1+Math.floor(Math.random()*(GRID-2-sz)),gy=1+Math.floor(Math.random()*(GRID-2-sz));
-      if(free(gx,gy,sz)){obs.push({ob:true,type:t,gx,gy});break;}}}
+  const place=(t,n)=>{const sz=OB[t].size;for(let i=0;i<n;i++){
+    for(let k=0;k<30;k++){const gx=1+Math.floor(Math.random()*(GRID-2-sz)),gy=1+Math.floor(Math.random()*(GRID-2-sz));
+      if(free(gx,gy,sz)){obs.push({ob:true,type:t,gx,gy});break;}}}};
+  place("rock",4);place("rock1",8);place("palm",6);place("bush",6); // больших камней ≤4, маленьких 8
   return obs;}
 function obstacleAt(gx,gy){if(!S.obstacles)return null;let f=null,fz=-1;for(const o of S.obstacles){const s=OB[o.type].size;
   if(gx>=o.gx&&gx<o.gx+s&&gy>=o.gy&&gy<o.gy+s){const z=o.gx+o.gy;if(z>fz){fz=z;f=o;}}}return f;}
@@ -645,7 +646,7 @@ function keyOutDock(im){const w=im.naturalWidth,h=im.naturalHeight,c=document.cr
   g.putImageData(id,0,0);
   let minx=w,miny=h,maxx=-1,maxy=-1;for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(d[(y*w+x)*4+3]>10){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
   if(maxx<minx)return c;const cw=maxx-minx+1,ch=maxy-miny+1,c2=document.createElement("canvas");c2.width=cw;c2.height=ch;c2.getContext("2d").drawImage(c,minx,miny,cw,ch,0,0,cw,ch);return c2;}
-["rock","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
+["rock","rock1","bush","palm","chest","boat","crates","dock","lighthouse","shells","crystals","anchor","umbrella"].forEach(k=>{const im=new Image();im.onload=function(){try{decoCv[k]=(k==="dock")?keyOutDock(im):keyOutWhite(im);}catch(e){try{decoCv[k]=cropToContent(im);}catch(e2){decoCv[k]=im;}}};im.src="assets/"+k+".png";});
 function bakeGround(){
   if(!grassLightCv||!grassGreenCv)return;
   const cv2=document.createElement("canvas");cv2.width=G_BAKE_W;cv2.height=G_BAKE_H;
