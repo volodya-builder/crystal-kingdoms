@@ -701,9 +701,9 @@ const shadowSprite=(function(){const c=document.createElement("canvas");c.width=
   const gr=g.createRadialGradient(80,40,4,80,40,76);gr.addColorStop(0,"rgba(0,0,0,.5)");gr.addColorStop(.55,"rgba(0,0,0,.3)");gr.addColorStop(1,"rgba(0,0,0,0)");
   g.fillStyle=gr;g.beginPath();g.ellipse(80,40,78,38,0,0,7);g.fill();return c;})();
 function drawPlot(b){const s=BT[b.type].size,cen=iso(b.gx+s/2,b.gy+s/2),w=s*TW*ZOOM*0.96,h=w*0.5;
-  // мягкая направленная тень (свет сверху-слева → тень вправо-вниз)
-  const sw=w*1.18,sh=sw*0.5;
-  ctx.drawImage(shadowSprite,cen[0]-sw/2+w*0.06,cen[1]-sh/2+h*0.22,sw,sh);
+  // мягкая направленная тень — падает вправо (свет слева)
+  const sw=w*1.15,sh=sw*0.5;
+  ctx.drawImage(shadowSprite,cen[0]-sw/2+w*0.34,cen[1]-sh/2+h*0.16,sw,sh);
   if(b.type==="wall")return;
   ctx.save();
   ctx.fillStyle="rgba(150,108,58,.85)";
