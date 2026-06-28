@@ -1183,9 +1183,10 @@ function render(){
     setWalls(war.enemy);
     const ents=[];
     for(const b of war.enemy)if(b.hp>0)ents.push({k:"b",o:b,d:b.gx+b.gy+BT[b.type].size});
+    for(const o of (war.deco||[]))ents.push({k:"d",o,d:o.gx+o.gy+OB[o.type].size});  // декорации (визуальные)
     for(const u of war.units)if(u.hp>0)ents.push({k:"u",o:u,d:u.gx+u.gy+(u.air?-2:0)});
     ents.sort((a,b)=>a.d-b.d);
-    for(const e of ents){if(e.k==="b")drawBuilding(e.o);else drawUnit(e.o);}
+    for(const e of ents){if(e.k==="b")drawBuilding(e.o);else if(e.k==="d")drawObstacle(e.o);else drawUnit(e.o);}
     for(const sh of war.shots){const[x1,y1]=iso(sh.x1,sh.y1),[x2,y2]=iso(sh.x2,sh.y2-(sh.air?14*ZOOM/ZOOM:0));
       ctx.strokeStyle=sh.col;ctx.lineWidth=2.2*ZOOM;ctx.beginPath();ctx.moveTo(x1,y1-(sh.fromAir?14*ZOOM:0));ctx.lineTo(x2,y2);ctx.stroke();}
     for(const bl of war.blasts){const[x,y]=iso(bl.x,bl.y);ctx.strokeStyle="rgba(255,160,90,"+bl.life+")";ctx.lineWidth=3*ZOOM;ctx.beginPath();ctx.arc(x,y,bl.r*TW/2*ZOOM,0,7);ctx.stroke();}
@@ -1400,7 +1401,9 @@ function baseFromSnapshot(snap){
         lootGem=Math.max(0,Math.round((lvl-1)*0.6+(Math.random()<0.4?1:0)));
   const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore"),se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
   distribute(ie.length?ie:eb,"ice",lootIce);distribute(se.length?se:eb,"stone",lootStone);hq.gem=lootGem;
-  return{list:eb,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:"pvp",styleName:"Игрок",desc:"",
+  // декорации игрока (с травы, без пляжных) — визуальные
+  const deco=[];for(const o of (dat.o||[])){if(o.bc||!OB[o.t]||OB[o.t].beach)continue;deco.push({ob:true,type:o.t,gx:o.x,gy:o.y,flip:o.f?1:0,deco:1});}
+  return{list:eb,deco,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:"pvp",styleName:"Игрок",desc:"",
     trophyWin:Math.round(18+lvl*5),name:(snap.name||"Игрок"),pvp:true,oppId:snap.id};
 }
 function genEnemyBase(styleKey){
@@ -1458,6 +1461,13 @@ function genEnemyBase(styleKey){
   if(st.wall>=1.5){const hx=cx-2,hy=cy-2,hx2=cx+1,hy2=cy+1;   // фортовое внутреннее кольцо у штаба
     for(let x=hx;x<=hx2;x++){put("wall",wlv,x,hy);put("wall",wlv,x,hy2);}
     for(let y=hy+1;y<hy2;y++){put("wall",wlv,hx,y);put("wall",wlv,hx2,y);}}
+  // ДЕКОРАЦИИ — чисто визуальные (камни/пальмы/кусты по острову, не блокируют и не дают добычу)
+  const deco=[],dTypes=[["rock1",1],["palm",1],["bush",1],["rock",2]];
+  const decoFree=(gx,gy,s)=>{if(!occ(gx,gy,s))return false;for(const o of deco){const os=OB[o.type].size;if(gx<o.gx+os&&gx+s>o.gx&&gy<o.gy+os&&gy+s>o.gy)return false;}return true;};
+  const wantD=10+Math.floor(Math.random()*8);
+  for(let tries=0,placed=0;placed<wantD&&tries<240;tries++){const dt=dTypes[Math.floor(Math.random()*dTypes.length)],t=dt[0],sz=dt[1];
+    const gx=2+Math.floor(Math.random()*(GRID-4)),gy=2+Math.floor(Math.random()*(GRID-4));
+    if(decoFree(gx,gy,sz)){deco.push({ob:true,type:t,gx,gy,deco:1});placed++;}}
   const lootIce=Math.round((450*lvl+Math.random()*300*lvl)*st.loot),lootStone=Math.round((260*lvl+Math.random()*180*lvl)*st.loot),lootGem=Math.max(0,Math.round((lvl-1+(Math.random()<0.5?1:0))*st.loot));
   const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore");
   const se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
@@ -1465,7 +1475,7 @@ function genEnemyBase(styleKey){
   eb.find(b=>b.type==="hq").gem=lootGem;
   const trophyWin=Math.round((16+lvl*5)*st.troph);
   const name=OPP_NAMES[Math.floor(Math.random()*OPP_NAMES.length)];
-  return{list:eb,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:styleKey||"balanced",styleName:st.name,desc:st.desc,trophyWin,name};
+  return{list:eb,deco,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:styleKey||"balanced",styleName:st.name,desc:st.desc,trophyWin,name};
 }
 // разведка: 3 разные базы на выбор
 function scoutBases(){const pool=Object.keys(RAID_STYLES),pick=[];
@@ -1485,7 +1495,7 @@ function openScout(){
 // начать рейд из конфигурации базы (боты и PvP — общий путь)
 function startWarFrom(c){
   const hasHero=S.hero&&Date.now()>=(S.hero.readyAt||0);
-  war={enemy:c.list,lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
+  war={enemy:c.list,deco:c.deco||[],lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
     heroAvail:hasHero,heroUsed:false,units:[],shots:[],blasts:[],over:false,
     start:c.list.length,lootedIce:0,lootedStone:0,lootedGem:0,wallVer:0,
     trophyWin:c.trophyWin,styleName:c.styleName,oppName:c.name,pvp:!!c.pvp,oppId:c.oppId||null};
