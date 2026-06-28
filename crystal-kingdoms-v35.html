@@ -274,7 +274,7 @@
       <div id="sea"></div>
       <canvas id="cv"></canvas>
       <div id="help"></div><div id="toast"></div>
-      <div id="zoomctl"><button id="zIn">＋</button><button id="zOut">－</button><button id="zReset">⤢</button></div>
+      <div id="zoomctl"><button id="zCenter" title="В центр острова">🎯</button><button id="zIn">＋</button><button id="zOut">－</button><button id="zReset" title="Сброс вида">⤢</button></div>
       <div id="floatBar"><button id="fUp" title="Улучшить">▲</button><button id="fRot" title="Повернуть">↻</button><button id="fMove" title="Переместить">✋</button><button id="fDel" title="Снести">🗑</button></div>
       <button id="adminBtn" title="Админ">⚙</button>
       <div id="adminPanel">
@@ -1885,6 +1885,7 @@ function updHelp(){document.getElementById("help").innerHTML=mode==="build"
 document.getElementById("zIn").onclick=()=>zoomAt(VW/2,VH/2,1.18);
 document.getElementById("zOut").onclick=()=>zoomAt(VW/2,VH/2,1/1.18);
 document.getElementById("zReset").onclick=()=>{ZOOM=0.78;panX=0;panY=0;recalcCam();};
+document.getElementById("zCenter").onclick=()=>{panX=0;panY=0;recalcCam();toast("📍 Камера в центре");}; // вернуть камеру в центр острова (зум не трогаем)
 const adminBtn=document.getElementById("adminBtn"),adminPanel=document.getElementById("adminPanel");
 adminBtn.onclick=(e)=>{if(e){e.preventDefault();e.stopPropagation();}adminPanel.classList.toggle("show");};
 adminBtn.addEventListener("pointerdown",e=>e.stopPropagation()); // не отдаём клик карте
