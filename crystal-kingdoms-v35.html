@@ -929,18 +929,24 @@ function drawPumpBeam(b,cen,W,H,bottomY){
   ctx.save();ctx.translate(pvx,pvy);if(b.flip)ctx.scale(-1,1);ctx.rotate(ang);
   ctx.drawImage(im,-PUMP.bpX*bw,-PUMP.bpY*bh,bw,bh);ctx.restore();
 }
+let _wallSet=null; // клетки стен текущей сцены — для авто-ориентации сегментов забора
+function setWalls(arr){_wallSet=new Set();if(arr)for(const b of arr)if(b&&b.type==="wall"&&(b.hp===undefined||b.hp>0))_wallSet.add(b.gx+","+b.gy);}
+function wallFlip(b){if(!_wallSet)return!!b.flip;const has=(x,y)=>_wallSet.has(x+","+y);
+  const hH=has(b.gx-1,b.gy)||has(b.gx+1,b.gy),hV=has(b.gx,b.gy-1)||has(b.gx,b.gy+1);
+  return hV&&!hH; }   // вертикальный ряд (бок) — зеркалим, чтобы забор смыкался
 function drawSpriteBuilding(b,spr){
   const s=BT[b.type].size,img=spr.img;
   const iw=img.naturalWidth||img.width,ih=img.naturalHeight||img.height;
   const cen=iso(b.gx+s/2,b.gy+s/2);
   const fw=s*TW*ZOOM,W=fw*spr.scale*SPRITE_FIT,H=W*(ih/iw);
   const bottomY=cen[1]+s*TH*ZOOM*0.5*spr.base*SPRITE_FIT+(spr.dy||0)*ZOOM;
+  const flip=(b.type==="wall")?wallFlip(b):b.flip;
   ctx.globalAlpha=b.built===false?0.7:1;
-  if(b.flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
+  if(flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
   ctx.globalAlpha=1;
   if(b===hoverObj){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter"; // очень лёгкая подсветка при наведении
-    if(b.flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);}
+    if(flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);}
     ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   if(b.type==="stonepump"&&b.built!==false)drawPumpBeam(b,cen,W,H,bottomY); // анимированная балка качалки
   if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
@@ -1154,6 +1160,7 @@ function render(){
   if(visit){
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...visit.buildings,...visit.obstacles].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
+    setWalls(visit.buildings);
     for(const it of list){if(it.ob)drawObstacle(it);else drawBuilding(it);}
   }else if(mode==="build"||!war){
     hoverObj=null;
@@ -1169,9 +1176,11 @@ function render(){
       else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
+    setWalls(S.buildings);
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
   }else{
+    setWalls(war.enemy);
     const ents=[];
     for(const b of war.enemy)if(b.hp>0)ents.push({k:"b",o:b,d:b.gx+b.gy+BT[b.type].size});
     for(const u of war.units)if(u.hp>0)ents.push({k:"u",o:u,d:u.gx+u.gy+(u.air?-2:0)});
