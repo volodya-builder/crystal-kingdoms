@@ -1440,13 +1440,12 @@ function genEnemyBase(styleKey){
   let minx=99,miny=99,maxx=-1,maxy=-1;
   for(const b of eb){const s=BT[b.type].size;minx=Math.min(minx,b.gx);miny=Math.min(miny,b.gy);maxx=Math.max(maxx,b.gx+s-1);maxy=Math.max(maxy,b.gy+s-1);}
   const wlv=Math.max(1,Math.min(5,lvl<=1?1:lvl-1));
-  let wallBudget=Math.round((12+lvl*4)*st.wall);
   const x0=minx-1,y0=miny-1,x1=maxx+1,y1=maxy+1,perim=[];
   for(let x=x0;x<=x1;x++){perim.push([x,y0]);perim.push([x,y1]);}
   for(let y=y0+1;y<y1;y++){perim.push([x0,y]);perim.push([x1,y]);}
-  const step=wallBudget>=perim.length?1:Math.max(1,Math.round(perim.length/wallBudget));
-  for(let i=0;i<perim.length&&wallBudget>0;i++){if(step>1&&(i%step)!==0)continue;
-    if(put("wall",wlv,perim[i][0],perim[i][1]))wallBudget--;}
+  const gappy=st.wall<0.9;   // «Ферма» — со слабыми местами (дыры в заборе), остальные базы закрыты полностью
+  for(let i=0;i<perim.length;i++){if(gappy&&i%3===0)continue; // оставляем проходы у фермы
+    put("wall",wlv,perim[i][0],perim[i][1]);}
   if(st.wall>=1.5){const hx=cx-2,hy=cy-2,hx2=cx+1,hy2=cy+1;   // фортовое внутреннее кольцо у штаба
     for(let x=hx;x<=hx2;x++){put("wall",wlv,x,hy);put("wall",wlv,x,hy2);}
     for(let y=hy+1;y<hy2;y++){put("wall",wlv,hx,y);put("wall",wlv,hx2,y);}}
@@ -1479,7 +1478,7 @@ function startWarFrom(c){
   const hasHero=S.hero&&Date.now()>=(S.hero.readyAt||0);
   war={enemy:c.list,lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
     heroAvail:hasHero,heroUsed:false,units:[],shots:[],blasts:[],over:false,
-    start:c.list.length,lootedIce:0,lootedStone:0,lootedGem:0,
+    start:c.list.length,lootedIce:0,lootedStone:0,lootedGem:0,wallVer:0,
     trophyWin:c.trophyWin,styleName:c.styleName,oppName:c.name,pvp:!!c.pvp,oppId:c.oppId||null};
   scout=null;pvpList=null;sel=null;buildSel=null;refreshTop();renderSide();updHelp();
 }
@@ -1495,10 +1494,15 @@ function beginRaidPvP(id){toast("Загружаю базу игрока…");
     .then(r=>r.json()).then(rows=>{const r=rows&&rows[0];if(!r){toast("Остров не найден");return;}
       const c=baseFromSnapshot(r);if(!c){toast("База игрока пуста");return;}startWarFrom(c);})
     .catch(()=>toast("Ошибка загрузки базы"));}
+function deployBlocked(gx,gy){const cx=Math.floor(gx),cy=Math.floor(gy);
+  for(const b of war.enemy){if(b.hp<=0)continue;const s=BT[b.type].size;if(cx>=b.gx&&cx<b.gx+s&&cy>=b.gy&&cy<b.gy+s)return true;}return false;}
+function freeDeploySpot(gx,gy){for(let r=0.6;r<=GRID;r+=0.6)for(let a=0;a<16;a++){const ang=a/16*6.283,nx=gx+Math.cos(ang)*r,ny=gy+Math.sin(ang)*r;
+  if(nx<0.5||ny<0.5||nx>GRID-0.5||ny>GRID-0.5)continue;if(!deployBlocked(nx,ny))return[nx,ny];}return[gx,gy];}
 function deployAt(gx,gy){
   if(!war||war.over)return;
-  let px=gx,py=gy;const dl=gx,dr=GRID-gx,dt=gy,db=GRID-gy,m=Math.min(dl,dr,dt,db);
-  if(m===dl)px=0.5;else if(m===dr)px=GRID-0.5;else if(m===dt)py=0.5;else py=GRID-0.5;
+  // высадка в точке тапа (можно близко к базе); если клетка занята зданием/стеной — сдвигаем наружу
+  let px=Math.max(0.5,Math.min(GRID-0.5,gx)),py=Math.max(0.5,Math.min(GRID-0.5,gy));
+  if(deployBlocked(px,py)){const f=freeDeploySpot(px,py);px=f[0];py=f[1];}
   if(S.selUnit==="hero"){
     if(!war.heroAvail){toast("Герой недоступен");return;}
     if(war.heroUsed){toast("Герой уже на поле");return;}
@@ -1528,20 +1532,59 @@ function nearestB(u){
 }
 function nearestEnemyUnit(b){ // для огрызающихся (огонь по ближайшему вражескому юниту) — здесь враг статичен, не нужно
   return null;}
+// ── ПОИСК ПУТИ ВОКРУГ СТЕН ──
+function wallGrid(){const g=Array.from({length:GRID},()=>new Uint8Array(GRID));
+  for(const b of war.enemy){if(b.hp<=0||b.type!=="wall")continue;const s=BT[b.type].size;
+    for(let y=b.gy;y<b.gy+s;y++)for(let x=b.gx;x<b.gx+s;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)g[y][x]=1;}
+  return g;}
+function nearestWall(u){let best=null,bd=1e9;for(const b of war.enemy){if(b.hp<=0||b.type!=="wall")continue;
+  const d=Math.hypot(b.gx+0.5-u.gx,b.gy+0.5-u.gy);if(d<bd){bd=d;best=b;}}return best;}
+// BFS от клетки юнита к зоне рядом с целью, обходя стены; путь (массив точек), [] если рядом, null если пути нет
+function findPath(u,target,grid){
+  const sx=Math.max(0,Math.min(GRID-1,Math.floor(u.gx))),sy=Math.max(0,Math.min(GRID-1,Math.floor(u.gy)));
+  const s=BT[target.type].size,goal={};
+  for(let y=target.gy-1;y<=target.gy+s;y++)for(let x=target.gx-1;x<=target.gx+s;x++){
+    if(x<0||y<0||x>=GRID||y>=GRID||grid[y][x])continue;goal[x+","+y]=1;}
+  const startK=sx+","+sy;if(goal[startK])return [];
+  const q=[[sx,sy]],prev={},seen=new Uint8Array(GRID*GRID),D=[[1,0],[-1,0],[0,1],[0,-1]];
+  seen[sy*GRID+sx]=1;let foundK=null,head=0;
+  while(head<q.length){const c=q[head++],x=c[0],y=c[1],ck=x+","+y;
+    if(goal[ck]){foundK=ck;break;}
+    for(let di=0;di<4;di++){const nx=x+D[di][0],ny=y+D[di][1];
+      if(nx<0||ny<0||nx>=GRID||ny>=GRID)continue;const idx=ny*GRID+nx;
+      if(seen[idx]||grid[ny][nx])continue;seen[idx]=1;prev[nx+","+ny]=ck;q.push([nx,ny]);}}
+  if(!foundK)return null;
+  const path=[];let cur=foundK;while(cur&&cur!==startK){const p=cur.split(",");path.push([(+p[0])+0.5,(+p[1])+0.5]);cur=prev[cur];}
+  path.reverse();return path;}
 function updateWar(dt){
   const now=Date.now();
+  const grid=wallGrid();if(war.wallVer==null)war.wallVer=0;
   for(const u of war.units){
     if(u.hp<=0)continue;u._atk=Math.max(0,u._atk-dt*3);
-    if(!u.target||u.target.hp<=0)u.target=nearestB(u);
+    if(!u.target||u.target.hp<=0){u.target=nearestB(u);u._path=null;u._pt=null;}
     const t=u.target;if(!t)continue;
-    const s=BT[t.type].size,dx=t.gx+s/2-u.gx,dy=t.gy+s/2-u.gy,d=Math.hypot(dx,dy);
-    const reach=u.ranged?u.ranged:0.9;
-    if(d>reach){u.moving=true;u.gx+=dx/d*u.speed*dt;u.gy+=dy/d*u.speed*dt;}
-    else{u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=u.dmg;u.atkcd=0.7;u._atk=1;
-      const tsx=iso(t.gx+s/2,t.gy+s/2);
-      if(t.hp<=0){grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});SND.boom();addShake(6);}
-      else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
-      if(u.ranged||u.air){sfx("shoot");war.shots.push({x1:u.gx,y1:u.gy,x2:t.gx+s/2,y2:t.gy+s/2,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":(u.type==="blaze"?"rgba(255,160,90,.95)":"rgba(120,224,200,.9)")});}}}
+    const s=BT[t.type].size,cxg=t.gx+s/2,cyg=t.gy+s/2,dx=cxg-u.gx,dy=cyg-u.gy,d=Math.hypot(dx,dy)||1e-6;
+    const reach=(u.ranged?u.ranged:0.9)+s*0.45;            // учитываем размер здания
+    if(d<=reach){ // в зоне удара — атакуем
+      u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=u.dmg;u.atkcd=0.7;u._atk=1;
+        const tsx=iso(cxg,cyg);
+        if(t.hp<=0){if(t.type==="wall")war.wallVer++;grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});SND.boom();addShake(6);}
+        else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
+        if(u.ranged||u.air){sfx("shoot");war.shots.push({x1:u.gx,y1:u.gy,x2:cxg,y2:cyg,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":(u.type==="blaze"?"rgba(255,160,90,.95)":"rgba(120,224,200,.9)")});}}
+      continue;}
+    u.moving=true;
+    if(u.air||u.ignoreWall){u.gx+=dx/d*u.speed*dt;u.gy+=dy/d*u.speed*dt;continue;} // авиация/Blaze — поверх стен
+    // путь вокруг стен (пересчёт при смене цели/стен)
+    if(!u._path||u._pt!==t||u._ver!==war.wallVer){
+      const p=findPath(u,t,grid);
+      if(p===null){const w=nearestWall(u);if(w&&w!==t){u.target=w;u._path=null;u._pt=null;u._ver=war.wallVer;continue;}u._path=[];}
+      else u._path=p;
+      u._pt=t;u._ver=war.wallVer;u._pi=0;}
+    let aimX=cxg,aimY=cyg;
+    if(u._path&&u._path.length){if(u._pi<u._path.length){const wp=u._path[u._pi];aimX=wp[0];aimY=wp[1];
+      if(Math.hypot(aimX-u.gx,aimY-u.gy)<0.3)u._pi++;}}
+    const adx=aimX-u.gx,ady=aimY-u.gy,ad=Math.hypot(adx,ady)||1e-6;
+    u.gx+=adx/ad*u.speed*dt;u.gy+=ady/ad*u.speed*dt;
   }
   for(const b of war.enemy){
     if(b.hp<=0||BT[b.type].role!=="def")continue;b.cd-=dt;if(b.cd>0)continue;
