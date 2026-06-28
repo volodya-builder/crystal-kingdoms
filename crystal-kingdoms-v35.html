@@ -203,6 +203,18 @@
   .cat-th .lk{position:absolute;top:6px;left:6px;font-size:13px}
   /* визиты */
   #visitOpen{position:absolute;left:14px;bottom:16px;z-index:9;background:linear-gradient(180deg,#2a8f5a,#1c6e44);border:1px solid #45c98a;color:#eaf3ff;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  #questOpen{position:absolute;left:14px;bottom:64px;z-index:9;background:linear-gradient(180deg,#c2922f,#8a5f17);border:1px solid #ffce5c;color:#fff;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:800;letter-spacing:1px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+  #questOpen .qdot{display:none;position:absolute;top:-5px;right:-5px;width:14px;height:14px;border-radius:50%;background:#ff4d4d;border:2px solid #0a1228}
+  #questOpen.has .qdot{display:block;animation:qpulse 1s infinite}
+  @keyframes qpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+  #questList{position:fixed;inset:0;background:rgba(4,9,20,.9);z-index:120;display:none;align-items:center;justify-content:center}
+  #questList.show{display:flex}
+  .q-row{padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#0c1730}
+  .q-top{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px}
+  .q-rew{color:#ffce5c;font-weight:700}
+  .q-bar{height:8px;border-radius:5px;background:#06101f;overflow:hidden;border:1px solid #1b2c50}
+  .q-bar i{display:block;height:100%;background:linear-gradient(90deg,#ffce5c,#e6a93a)}
+  .q-done{color:#5ce0a8;font-weight:700}
   #visitOpen:hover{filter:brightness(1.08)}
   #visitBar{display:none;position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:12;align-items:center;gap:12px;background:rgba(14,28,60,.95);border:1px solid var(--good);border-radius:12px;padding:8px 14px;color:var(--ink);font-size:14px}
   #visitBar .btn{padding:7px 14px;font-size:13px}
@@ -277,6 +289,7 @@
       <div id="overlay"><div class="dialog" id="dialog"></div></div>
       <button id="catOpen">🏗 Построить</button>
       <button id="visitOpen">🏝 Гости</button>
+      <button id="questOpen">🎁 Задания<span class="qdot"></span></button>
       <div id="visitBar"><span>🏝 В гостях у <b id="visitName">—</b></span><button class="btn" id="visitHome">🏠 Домой</button></div>
     </div>
     <div id="side"></div>
@@ -284,6 +297,7 @@
 </div>
 <div id="catalog"></div>
 <div id="visitList"></div>
+<div id="questList"></div>
 <div id="obDialog"></div>
 
 <script>
@@ -423,6 +437,9 @@ function freshState(){
     hero:null,                     // {level, readyAt} когда построен алтарь
     selUnit:"striker",
     trophies:0,
+    daily:{last:"",streak:0},          // ежедневная награда
+    qstats:{day:"",win:0,pvp:0,build:0,train:0}, // прогресс дневных заданий
+    qclaim:{},                          // забранные сегодня награды за квесты
     admin:{infRes:false,instaBuild:false,instaArmy:false},
     lastTs:Date.now()};
 }
@@ -475,6 +492,9 @@ function load(){
       S.name=S.name||"VALORION";
       S.admin=Object.assign({infRes:false,instaBuild:false,instaArmy:false},S.admin||{});
       S.trophies=S.trophies||0;
+      S.daily=S.daily||{last:"",streak:0};
+      S.qstats=S.qstats||{day:"",win:0,pvp:0,build:0,train:0};
+      S.qclaim=S.qclaim||{};
       if(S.research===undefined)S.research=null;
       offlineCatchup();}
   }catch(e){S=freshState();}
@@ -1169,6 +1189,7 @@ function placeNew(type,gx,gy){
   S.buildings.push(b);
   if(type==="altar"&&b.built)S.hero={level:1,readyAt:0};
   {const ps=iso(gx+BT[type].size/2,gy+BT[type].size/2);burst(ps[0],ps[1],12,"rgba(220,200,160,.9)",{spd:65,life:0.5,up:8,size:3,grav:160});SND.place();addShake(3);}
+  qbump("build");
   save();refreshTop();renderSide();return true;
 }
 function upgradeCost(b){const d=BT[b.type],nl=b.level+1;
@@ -1182,6 +1203,7 @@ function startUpgrade(b){
   if(!S.admin.infRes)S.ice-=u.ice;
   b.built=ut<=0;b._dur=ut;b._upTo=u.level;
   if(ut>0)b.buildEnd=Date.now()+ut*1000;else applyLevel(b,u.level);
+  qbump("build");
   save();refreshTop();renderSide();
 }
 function applyLevel(b,level){b.level=level;const d=BT[b.type],lv=b.type==="hq"?{hp:HQ[level].hp}:d.lv[level];
@@ -1220,6 +1242,7 @@ function enqueueTroop(type){
   if(!S.admin.infRes&&S.stone<u.cost){toast("Не хватает Oil");return;}
   if(armyUsed()+u.space>armyCapacity()){toast("Армия заполнена — нужен Army Camp");return;}
   if(!S.admin.infRes)S.stone-=u.cost;
+  qbump("train");
   if(S.admin.instaArmy){S.army[type]=(S.army[type]||0)+1;save();refreshTop();renderSide();return;}
   const q=u.build==="hangar"?S.queueH:S.queueF;
   const prevEnd=q.length?q[q.length-1].end:Date.now();
@@ -1239,6 +1262,55 @@ function startResearch(type){
   save();refreshTop();renderSide();
 }
 
+/* ===== ЗАДАНИЯ, ЕЖЕДНЕВНАЯ НАГРАДА ===== */
+const QUESTS=[
+  {id:"build",metric:"build",target:3,name:"Построй или улучши 3 здания",reward:{ice:1200}},
+  {id:"train",metric:"train",target:6,name:"Натренируй 6 юнитов",reward:{stone:900}},
+  {id:"win",  metric:"win",  target:3,name:"Победи в 3 рейдах",        reward:{ice:2000}},
+  {id:"pvp",  metric:"pvp",  target:1,name:"Соверши набег на игрока",   reward:{gem:4}}
+];
+const QICON={ice:"ice",stone:"stone",gem:"gem"};
+function dayStr(){const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();}
+function ensureDay(){const d=dayStr();if(!S.qstats)S.qstats={day:"",win:0,pvp:0,build:0,train:0};
+  if(S.qstats.day!==d){S.qstats={day:d,win:0,pvp:0,build:0,train:0};S.qclaim={};}}
+function qbump(metric,n){ensureDay();S.qstats[metric]=(S.qstats[metric]||0)+(n||1);refreshQuestBadge();}
+function dailyReady(){return (S.daily&&S.daily.last)!==dayStr();}
+function questClaimable(q){ensureDay();return (S.qstats[q.metric]||0)>=q.target&&!(S.qclaim&&S.qclaim[q.id]);}
+function anyQuestReady(){return dailyReady()||QUESTS.some(questClaimable);}
+function refreshQuestBadge(){const b=document.getElementById("questOpen");if(b)b.classList.toggle("has",anyQuestReady());}
+function grantReward(r){const c=caps();if(r.ice)S.ice=Math.min(c.ice,S.ice+r.ice);if(r.stone)S.stone=Math.min(c.stone,S.stone+r.stone);if(r.gem)S.gem+=r.gem;}
+function rewardText(r){const p=[];if(r.ice)p.push(fmt(r.ice)+" Gold");if(r.stone)p.push(fmt(r.stone)+" Oil");if(r.gem)p.push(r.gem+" Ruby");return p.join(" · ");}
+function claimDaily(){if(!dailyReady())return;
+  const d=dayStr(),prev=S.daily.last,streak=(prev&&isYesterday(prev))?(S.daily.streak||0)+1:1;
+  S.daily.last=d;S.daily.streak=streak;
+  const day=((streak-1)%7)+1,r={ice:400*day,gem:(day>=7?5:(day>=4?2:1))};
+  grantReward(r);save();refreshTop();
+  if(typeof SND!=="undefined")SND.place();toast("🎁 Награда дня: "+rewardText(r));openQuests();
+}
+function isYesterday(s){try{const y=new Date();y.setDate(y.getDate()-1);return s===(y.getFullYear()+"-"+(y.getMonth()+1)+"-"+y.getDate());}catch(e){return false;}}
+function claimQuest(id){const q=QUESTS.find(x=>x.id===id);if(!q||!questClaimable(q))return;
+  S.qclaim[q.id]=1;grantReward(q.reward);save();refreshTop();
+  if(typeof SND!=="undefined")SND.win();toast("Задание выполнено: +"+rewardText(q.reward));openQuests();}
+function openQuests(){ensureDay();const el=document.getElementById("questList");
+  const dReady=dailyReady(),streak=(S.daily&&S.daily.streak)||0,nextDay=((dReady?streak:streak-1)%7)+1;
+  let h='<div class="vl-box"><div class="vl-top"><b>🎁 Задания и награды</b><button class="cat-x" id="qClose">✕</button></div><div class="vl-rows">';
+  // ежедневная награда
+  h+='<div class="q-row"><div class="q-top"><span>📅 Ежедневная награда <span style="color:var(--muted)">· серия '+streak+' дн.</span></span><span class="q-rew">'+rewardText({ice:400*nextDay,gem:(nextDay>=7?5:(nextDay>=4?2:1))})+'</span></div>';
+  h+=dReady?'<button class="btn go" id="qDaily">Забрать</button>':'<div class="q-done">✓ Получено сегодня — приходи завтра</div>';
+  h+='</div>';
+  // дневные квесты
+  for(const q of QUESTS){const cur=Math.min(q.target,S.qstats[q.metric]||0),pct=Math.round(cur/q.target*100),claimed=S.qclaim&&S.qclaim[q.id],can=questClaimable(q);
+    h+='<div class="q-row"><div class="q-top"><span>'+q.name+'</span><span class="q-rew">'+rewardText(q.reward)+'</span></div>';
+    h+='<div class="q-bar"><i style="width:'+pct+'%"></i></div><div style="font-size:11px;color:var(--muted);margin-top:3px">'+cur+' / '+q.target+'</div>';
+    if(claimed)h+='<div class="q-done">✓ Забрано</div>';
+    else if(can)h+='<button class="btn go" data-claim="'+q.id+'" style="margin-top:6px">Забрать награду</button>';
+    h+='</div>';}
+  h+='<div style="font-size:11px;color:var(--muted);padding:4px 2px">Задания обновляются каждый день.</div>';
+  h+='</div></div>';el.innerHTML=h;el.classList.add("show");
+  document.getElementById("qClose").onclick=()=>el.classList.remove("show");
+  const db=document.getElementById("qDaily");if(db)db.onclick=claimDaily;
+  el.querySelectorAll("[data-claim]").forEach(b=>b.onclick=()=>claimQuest(b.getAttribute("data-claim")));
+}
 /* ===== ВРАЖЕСКАЯ БАЗА + РЕЙД ===== */
 // архетипы вражеских баз для набегов: меняют оборону, стены, лут и трофеи
 const RAID_STYLES={
@@ -1424,6 +1496,7 @@ function endWar(win){
   // трофеи: победа — полная награда, поражение — частично за % разрушения
   const tw=war.trophyWin||20,dTroph=win?tw:Math.round(tw*pct/100*0.4);
   S.trophies=(S.trophies||0)+dTroph;
+  if(win){qbump("win");if(war.pvp)qbump("pvp");}
   save();showResult(win,pct,stars,gIce,gStone,gGem,dTroph);
 }
 function resetWar(){war=null;scout=null;pvpList=null;mode="build";document.getElementById("mBuild").classList.add("on");document.getElementById("mWar").classList.remove("on");refreshTop();renderSide();updHelp();}
@@ -1777,6 +1850,7 @@ function renderCatalog(){
 document.getElementById("catOpen").onclick=openCatalog;
 document.getElementById("visitOpen").onclick=openVisitList;
 document.getElementById("visitHome").onclick=leaveVisit;
+document.getElementById("questOpen").onclick=openQuests;
 function updHelp(){document.getElementById("help").innerHTML=mode==="build"
   ?"Тащи — карта · колесо/щипок — зум · тап по зданию — меню. Построй <b>Infantry Factory</b> и <b>Army Camp</b>, найми войско, потом «Поход». Авиация — в <b>Aircraft Factory</b> (HQ 4)."
   :"Тапай по <b>краю поля</b>, чтобы высаживать выбранных бойцов. Снеси вражеский <b>HQ</b> — победа. <b>Skyfire</b> бьёт всё, но <b>Anti-Air</b> его сбивают.";}
@@ -1817,8 +1891,9 @@ function buildAllMax(){
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){
-  const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList");
+  const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList"),ql=document.getElementById("questList");
   if(ob&&ob.classList.contains("show")){closeObDialog();return;}
+  if(ql&&ql.classList.contains("show")){ql.classList.remove("show");return;}
   if(vl&&vl.classList.contains("show")){vl.classList.remove("show");return;}
   if(catEl.classList.contains("show")){closeCatalog();return;}
   buildSel=null;sel=null;moving=null;renderSide();}if(e.key==="1")setMode("build");if(e.key==="2")setMode("war");
@@ -1833,7 +1908,7 @@ function buildIconCache(){for(const t in BT)ICN[t]=makeIcon("b",t,48);for(const 
 function bindNick(){var p=document.getElementById("nickPlate");if(!p)return;
   p.onclick=function(){var cur=S.name||"VALORION";var v=prompt("Твой ник:",cur);
     if(v!==null){v=v.trim().slice(0,16);if(v){S.name=v;save();refreshTop();toast("Имя изменено");}}};}
-function init(){load();syncAdminUI();paintResIcons();buildIconCache();resize();refreshTop();renderSide();updHelp();bindNick();publishIsland(true);requestAnimationFrame(loop);}
+function init(){load();ensureDay();syncAdminUI();paintResIcons();buildIconCache();resize();refreshTop();renderSide();updHelp();bindNick();refreshQuestBadge();publishIsland(true);requestAnimationFrame(loop);}
 window.addEventListener("resize",()=>{DPR=Math.min(DPR_CAP,Math.max(1,window.devicePixelRatio||1));resize();});
 window.addEventListener("load",resize);
 window.addEventListener("beforeunload",save);
