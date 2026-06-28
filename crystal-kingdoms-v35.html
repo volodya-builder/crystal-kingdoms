@@ -1396,30 +1396,60 @@ function baseFromSnapshot(snap){
 }
 function genEnemyBase(styleKey){
   const st=RAID_STYLES[styleKey]||RAID_STYLES.balanced;
-  const lvl=Math.max(1,Math.min(HQ_MAX,S.hqLevel+(Math.random()<0.4?1:0)));
-  const eb=[];const cx=Math.floor(GRID/2),cy=Math.floor(GRID/2);
-  const mk=(type,gx,gy,level)=>mkEnemy(eb,type,gx,gy,level);
-  const free=(gx,gy,s)=>{if(gx<2||gy<2||gx+s>GRID-2||gy+s>GRID-2)return false;
+  // уровень базы держим рядом с уровнем игрока — без диких скачков
+  let lvl=S.hqLevel+(Math.random()<0.35?1:0)-(Math.random()<0.18?1:0);
+  lvl=Math.max(1,Math.min(HQ_MAX,lvl));
+  const eb=[],cx=Math.floor(GRID/2),cy=Math.floor(GRID/2);
+  const occ=(gx,gy,s)=>{if(gx<2||gy<2||gx+s>GRID-2||gy+s>GRID-2)return false;
     for(const b of eb){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+s>b.gx&&gy<b.gy+bs&&gy+s>b.gy)return false;}return true;};
-  const tryP=(type,level,gx,gy)=>{const s=BT[type].size;if(free(gx,gy,s)){mk(type,gx,gy,level);return true;}return false;};
-  const lv=()=>Math.max(1,Math.min(lvl,1+Math.floor(Math.random()*lvl)));
-  mk("hq",cx-1,cy-1,lvl);
-  const ring=(r,n,cb)=>{for(let i=0;i<n;i++){const a=(i/n)*Math.PI*2+Math.random()*0.5;
-    cb(Math.round(cx+Math.cos(a)*r-1),Math.round(cy+Math.sin(a)*r-1));}};
-  let want={flame:Math.max(1,Math.round(Math.min(lvl+1,7)*st.def)),
-    aa:Math.max(0,Math.round(Math.max(1,Math.floor(lvl/2))*st.def)+st.aaBonus),
-    mortar:Math.max(0,Math.round(Math.max(0,Math.floor((lvl-1)/2))*st.def)),
-    icemine:Math.min(lvl,4),stonepump:Math.min(lvl,3),icestore:Math.min(lvl,3),stonestore:Math.min(lvl,3),
-    wall:Math.round((8+lvl*4)*st.wall)};
-  ring(5.2,want.flame,(x,y)=>{if(want.flame>0&&tryP("flame",lv(),x,y))want.flame--;});
-  ring(5.8,want.aa,(x,y)=>{if(want.aa>0&&tryP("aa",lv(),x,y))want.aa--;});
-  ring(6.4,want.mortar,(x,y)=>{if(want.mortar>0&&tryP("mortar",lv(),x,y))want.mortar--;});
-  ring(4,want.icemine+want.stonepump+want.icestore+want.stonestore,(x,y)=>{
-    if(want.icemine>0&&tryP("icemine",lv(),x,y)){want.icemine--;return;}
-    if(want.stonepump>0&&tryP("stonepump",lv(),x,y)){want.stonepump--;return;}
-    if(want.icestore>0&&tryP("icestore",lv(),x,y)){want.icestore--;return;}
-    if(want.stonestore>0&&tryP("stonestore",lv(),x,y)){want.stonestore--;return;}});
-  for(let i=0;i<want.wall;i++){const a=Math.random()*Math.PI*2,r=3+Math.random()*0.6;tryP("wall",Math.min(lvl,5),Math.round(cx+Math.cos(a)*r),Math.round(cy+Math.sin(a)*r));}
+  const put=(type,level,gx,gy)=>{const s=BT[type].size;if(occ(gx,gy,s)){mkEnemy(eb,type,gx,gy,level);return true;}return false;};
+  // поставить как можно ближе к точке (поиск по спирали) — плотная, но аккуратная застройка
+  const putNear=(type,level,tx,ty)=>{const s=BT[type].size,bx=Math.round(tx),by=Math.round(ty);
+    for(let r=0;r<=9;r++)for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++){
+      if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;
+      if(occ(bx+dx,by+dy,s)){mkEnemy(eb,type,bx+dx,by+dy,level);return true;}}
+    return false;};
+  const blv=()=>Math.max(1,lvl-(Math.random()<0.5?0:1));   // уровень здания ≈ уровню базы (±1)
+
+  // 1) ШТАБ — в центре
+  mkEnemy(eb,"hq",cx-1,cy-1,lvl);
+  // 2) ЯДРО — ресурсы и склады тесно вокруг штаба (это и есть охраняемая добыча)
+  const ecoWant=[],addN=(t,n)=>{for(let i=0;i<n;i++)ecoWant.push(t);};
+  addN("icemine",Math.max(1,Math.min(4,Math.round(lvl*0.6))));
+  addN("stonepump",Math.max(1,Math.min(3,Math.round(lvl*0.5))));
+  addN("icestore",Math.max(1,Math.min(3,Math.round(lvl*0.4))));
+  addN("stonestore",Math.max(1,Math.min(3,Math.round(lvl*0.4))));
+  let ei=0;
+  for(let r=2.3;r<=3.9&&ei<ecoWant.length;r+=0.85){const n=Math.max(4,Math.round(r*2.2));
+    for(let i=0;i<n&&ei<ecoWant.length;i++){const a=(i/n)*2*Math.PI+0.3;
+      if(putNear(ecoWant[ei],blv(),cx+Math.cos(a)*r-1,cy+Math.sin(a)*r-1))ei++;}}
+  while(ei<ecoWant.length){if(!putNear(ecoWant[ei],blv(),cx-1,cy-1))break;ei++;}
+  // 3) ОБОРОНА — кольцо вокруг ядра; флейм/ПВО чередуются для равномерного покрытия, миномёты глубже
+  const flameN=Math.max(1,Math.min(8,Math.round((1+lvl*0.8)*st.def)));
+  const aaN=lvl>=2?Math.max(1,Math.min(5,Math.round(lvl*0.4*st.def)+st.aaBonus)):0;
+  const mortarN=lvl>=3?Math.max(0,Math.min(4,Math.round((lvl-1)*0.35*st.def))):0;
+  // чередуем флейм и ПВО по кольцу, чтобы покрытие было равномерным (не кучей)
+  const inter=[];for(let i=0;i<Math.max(flameN,aaN);i++){if(i<flameN)inter.push("flame");if(i<aaN)inter.push("aa");}
+  const nD=inter.length,rDef=4.6+lvl*0.12;
+  for(let i=0;i<nD;i++){const a=(i/nD)*2*Math.PI+0.4;
+    putNear(inter[i],blv(),cx+Math.cos(a)*rDef-1,cy+Math.sin(a)*rDef-1);}
+  // миномёты — по диагоналям ближе к центру (их дальность достаёт до периметра)
+  for(let i=0;i<mortarN;i++){const a=Math.PI/4+i*(Math.PI/2);
+    putNear("mortar",blv(),cx+Math.cos(a)*3.3-1,cy+Math.sin(a)*3.3-1);}
+  // 4) СТЕНЫ — замкнутый периметр вокруг всей базы (фортресс — ещё внутреннее кольцо у штаба)
+  let minx=99,miny=99,maxx=-1,maxy=-1;
+  for(const b of eb){const s=BT[b.type].size;minx=Math.min(minx,b.gx);miny=Math.min(miny,b.gy);maxx=Math.max(maxx,b.gx+s-1);maxy=Math.max(maxy,b.gy+s-1);}
+  const wlv=Math.max(1,Math.min(5,lvl<=1?1:lvl-1));
+  let wallBudget=Math.round((12+lvl*4)*st.wall);
+  const x0=minx-1,y0=miny-1,x1=maxx+1,y1=maxy+1,perim=[];
+  for(let x=x0;x<=x1;x++){perim.push([x,y0]);perim.push([x,y1]);}
+  for(let y=y0+1;y<y1;y++){perim.push([x0,y]);perim.push([x1,y]);}
+  const step=wallBudget>=perim.length?1:Math.max(1,Math.round(perim.length/wallBudget));
+  for(let i=0;i<perim.length&&wallBudget>0;i++){if(step>1&&(i%step)!==0)continue;
+    if(put("wall",wlv,perim[i][0],perim[i][1]))wallBudget--;}
+  if(st.wall>=1.5){const hx=cx-2,hy=cy-2,hx2=cx+1,hy2=cy+1;   // фортовое внутреннее кольцо у штаба
+    for(let x=hx;x<=hx2;x++){put("wall",wlv,x,hy);put("wall",wlv,x,hy2);}
+    for(let y=hy+1;y<hy2;y++){put("wall",wlv,hx,y);put("wall",wlv,hx2,y);}}
   const lootIce=Math.round((450*lvl+Math.random()*300*lvl)*st.loot),lootStone=Math.round((260*lvl+Math.random()*180*lvl)*st.loot),lootGem=Math.max(0,Math.round((lvl-1+(Math.random()<0.5?1:0))*st.loot));
   const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore");
   const se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
