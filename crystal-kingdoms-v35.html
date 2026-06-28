@@ -348,83 +348,92 @@ function unIso(sx,sy){const X=(sx-oX)/ZOOM,Y=(sy-oY)/ZOOM;return[X/TW+Y/TH+GRID/
 /* =====================================================================
    ДАННЫЕ ПО MAVIA (числа подобраны под быструю браузерную сессию)
    ===================================================================== */
-// Штаб: hp, базовый потолок складов, лимиты построек по уровню.
-const HQ=[null,
- {hp:600, cap:1200, lim:{icemine:1,stonepump:1,icestore:1,stonestore:1,camp:1,factory:1,hangar:0,lab:0,altar:0,flame:1,aa:0,mortar:0,wall:14}},
- {hp:950, cap:2000, lim:{icemine:2,stonepump:1,icestore:1,stonestore:1,camp:1,factory:1,hangar:0,lab:0,altar:0,flame:2,aa:1,mortar:0,wall:22}},
- {hp:1400,cap:3500, lim:{icemine:2,stonepump:2,icestore:2,stonestore:2,camp:2,factory:1,hangar:0,lab:1,altar:0,flame:3,aa:1,mortar:1,wall:32}},
- {hp:2000,cap:6000, lim:{icemine:3,stonepump:2,icestore:2,stonestore:2,camp:2,factory:1,hangar:1,lab:1,altar:1,flame:4,aa:2,mortar:1,wall:44}},
- {hp:2900,cap:11000,lim:{icemine:3,stonepump:3,icestore:3,stonestore:3,camp:3,factory:2,hangar:1,lab:2,altar:1,flame:5,aa:2,mortar:2,wall:58}},
- {hp:4000,cap:20000,lim:{icemine:4,stonepump:3,icestore:3,stonestore:3,camp:3,factory:2,hangar:1,lab:2,altar:1,flame:6,aa:3,mortar:2,wall:74}},
- {hp:5400,cap:38000,lim:{icemine:4,stonepump:4,icestore:4,stonestore:4,camp:4,factory:2,hangar:2,lab:3,altar:1,flame:7,aa:3,mortar:3,wall:92}},
- {hp:7000,cap:70000,lim:{icemine:5,stonepump:4,icestore:4,stonestore:4,camp:4,factory:3,hangar:2,lab:3,altar:1,flame:8,aa:4,mortar:3,wall:110}},
-];
+// ── ГЕНЕРАТОР 10 УРОВНЕЙ (экономика в духе Clash of Clans: экспоненциальный рост) ──
+const MAXLV=10, R=Math.round;
+function geo(b,g,i){return b*Math.pow(g,i-1);}
+function nice(v){v=Math.max(1,v);if(v<100)return R(v/5)*5;if(v<1000)return R(v/10)*10;if(v<10000)return R(v/50)*50;if(v<100000)return R(v/500)*500;return R(v/5000)*5000;}
+function buildLv(sp){const out=[null];
+  for(let i=1;i<=MAXLV;i++){const e={};
+    if(sp.hp)e.hp=R(geo(sp.hp[0],sp.hp[1],i));
+    if(sp.ice)e.ice=nice(geo(sp.ice[0],sp.ice[1],i));
+    if(sp.t)e.t=(i===1&&sp.t1!=null)?sp.t1:R(geo(sp.t[0],sp.t[1],i));
+    if(sp.rate)e.rate=R(geo(sp.rate[0],sp.rate[1],i));
+    if(sp.cap)e.cap=nice(geo(sp.cap[0],sp.cap[1],i));
+    if(sp.capacity)e.capacity=R(geo(sp.capacity[0],sp.capacity[1],i));
+    if(sp.dmg)e.dmg=R(geo(sp.dmg[0],sp.dmg[1],i));
+    if(sp.range)e.range=+(sp.range[0]+(i-1)*sp.range[1]).toFixed(2);
+    if(sp.cd)e.cd=+(sp.cd[0]*Math.pow(sp.cd[1],i-1)).toFixed(3);
+    if(sp.unlock)e.unlock=Math.min(i,sp.unlock);
+    if(sp.tier)e.tier=Math.min(i+1,MAXLV);
+    if(sp.hero)e.hero=i;
+    out.push(e);}
+  return out;}
+// Штаб: лимиты построек по уровню (1..10)
+const HQ_LIM={
+ icemine:[1,2,2,3,3,4,4,5,5,6], stonepump:[1,1,2,2,3,3,4,4,5,5],
+ icestore:[1,1,2,2,3,3,4,4,5,5], stonestore:[1,1,2,2,3,3,4,4,5,5],
+ camp:[1,1,2,2,3,3,4,4,5,6], factory:[1,1,1,1,2,2,2,3,3,3], hangar:[0,0,0,1,1,1,2,2,2,3],
+ lab:[0,0,1,1,2,2,3,3,4,4], altar:[0,0,0,1,1,1,1,1,1,1],
+ flame:[1,2,3,4,5,6,7,8,9,10], aa:[0,1,1,2,2,3,3,4,4,5], mortar:[0,0,1,1,2,2,3,3,4,4],
+ wall:[16,26,40,56,76,98,122,150,180,215]};
+const HQ=[null];
+for(let i=1;i<=MAXLV;i++){const lim={};for(const k in HQ_LIM)lim[k]=HQ_LIM[k][i-1];
+  HQ.push({hp:R(geo(600,1.33,i)),cap:nice(geo(1200,1.85,i)),lim});}
 const HQ_MAX=HQ.length-1;
-const HQ_UP=[null,null,
- {ice:500,t:10},{ice:1500,t:25},{ice:4000,t:55},{ice:10000,t:110},{ice:26000,t:200},{ice:60000,t:340},{ice:130000,t:560}];
+const HQ_UP=[null,null];
+for(let i=2;i<=MAXLV;i++)HQ_UP.push({ice:nice(geo(500,2.25,i-1)),t:R(geo(10,1.55,i-1))});
 
-// Здания. role: prod|store|army|air|lab|altar|def|wall|core
-// per-level: hp, ice(стоимость), t(сек) + role-параметры.
+// Здания. role: prod|store|army|build|lab|altar|def|wall|core
 const BT={
  hq:{name:"Headquarters",size:3,role:"core",cls:"hq",desc:"Растёт за Gold. Открывает здания, войска и лимиты.",
    lv:HQ.map((h,i)=>i===0?null:({hp:h.hp}))},
 
  icemine:{name:"Gold Collector",size:2,role:"prod",prod:"ice",cls:"icemine",hq:1,
    desc:"Добывает Gold. Качай вместе со складом.",
-   lv:[null,{hp:300,ice:50,t:0,rate:14},{hp:420,ice:300,t:12,rate:24},{hp:560,ice:1200,t:30,rate:40},
-       {hp:740,ice:4000,t:70,rate:64},{hp:980,ice:12000,t:140,rate:100},{hp:1300,ice:30000,t:240,rate:155}]},
+   lv:buildLv({hp:[300,1.30],ice:[50,2.3],t:[7,1.5],t1:5,rate:[14,1.42]})},
  stonepump:{name:"Oil Collector",size:2,role:"prod",prod:"stone",cls:"stonepump",hq:1,
    desc:"Добывает Oil — топливо для войск.",
-   lv:[null,{hp:300,ice:80,t:0,rate:10},{hp:420,ice:350,t:14,rate:18},{hp:560,ice:1400,t:35,rate:30},
-       {hp:740,ice:4500,t:80,rate:48},{hp:980,ice:13000,t:150,rate:78},{hp:1300,ice:32000,t:250,rate:120}]},
+   lv:buildLv({hp:[300,1.30],ice:[80,2.3],t:[7,1.5],t1:5,rate:[10,1.42]})},
 
  icestore:{name:"Gold Storage",size:2,role:"store",which:"ice",cls:"icestore",hq:1,
    desc:"Повышает лимит Gold. Без места — не построить.",
-   lv:[null,{hp:500,ice:80,t:5,cap:2500},{hp:700,ice:400,t:18,cap:6000},{hp:950,ice:1800,t:40,cap:14000},
-       {hp:1250,ice:6000,t:90,cap:30000},{hp:1650,ice:16000,t:170,cap:64000}]},
+   lv:buildLv({hp:[500,1.32],ice:[80,2.2],t:[8,1.5],t1:5,cap:[2500,1.9]})},
  stonestore:{name:"Oil Storage",size:2,role:"store",which:"stone",cls:"stonestore",hq:1,
    desc:"Повышает лимит Oil.",
-   lv:[null,{hp:500,ice:90,t:5,cap:2500},{hp:700,ice:420,t:18,cap:6000},{hp:950,ice:1900,t:40,cap:14000},
-       {hp:1250,ice:6200,t:90,cap:30000},{hp:1650,ice:16500,t:170,cap:64000}]},
+   lv:buildLv({hp:[500,1.32],ice:[90,2.2],t:[8,1.5],t1:5,cap:[2500,1.9]})},
 
  camp:{name:"Army Camp",size:2,role:"army",cls:"camp",hq:1,
    desc:"Вмещает армию. Сумма лагерей = размер армии.",
-   lv:[null,{hp:450,ice:120,t:6,capacity:16},{hp:620,ice:600,t:20,capacity:26},{hp:840,ice:2500,t:45,capacity:40},
-       {hp:1100,ice:8000,t:100,capacity:58},{hp:1450,ice:20000,t:180,capacity:80}]},
+   lv:buildLv({hp:[450,1.31],ice:[120,2.25],t:[8,1.5],capacity:[16,1.36]})},
 
  factory:{name:"Infantry Factory",size:2,role:"build",make:"factory",cls:"factory",hq:1,
    desc:"Тренирует пехоту за Oil. Уровень открывает бойцов.",
-   lv:[null,{hp:400,ice:140,t:6,unlock:1},{hp:560,ice:600,t:20,unlock:2},{hp:760,ice:2500,t:45,unlock:3},
-       {hp:1000,ice:8000,t:100,unlock:4},{hp:1350,ice:20000,t:180,unlock:5}]},
+   lv:buildLv({hp:[400,1.31],ice:[140,2.25],t:[8,1.5],unlock:5})},
  hangar:{name:"Aircraft Factory",size:2,role:"build",make:"hangar",cls:"hangar",hq:4,
    desc:"Тренирует авиацию (Skyfire) за Oil.",
-   lv:[null,{hp:500,ice:1200,t:30,unlock:1},{hp:700,ice:5000,t:80,unlock:2},{hp:980,ice:16000,t:170,unlock:3}]},
+   lv:buildLv({hp:[500,1.31],ice:[1200,2.05],t:[30,1.45],unlock:5})},
 
  lab:{name:"Laboratory",size:2,role:"lab",cls:"lab",hq:3,
    desc:"Исследует уровни войск: +урон и +прочность бойцам.",
-   lv:[null,{hp:500,ice:1000,t:25,tier:2},{hp:750,ice:5000,t:90,tier:3},{hp:1100,ice:18000,t:200,tier:4}]},
+   lv:buildLv({hp:[500,1.32],ice:[1000,2.1],t:[25,1.5],tier:1})},
 
  altar:{name:"Hero Altar",size:2,role:"altar",cls:"altar",hq:4,
    desc:"Призывает героя Brutus. В бою ставится раз; гибель — откат.",
-   lv:[null,{hp:700,ice:2500,t:45,hero:1},{hp:1000,ice:9000,t:120,hero:2},{hp:1400,ice:24000,t:240,hero:3}]},
+   lv:buildLv({hp:[700,1.32],ice:[2500,2.05],t:[45,1.45],hero:1})},
 
  flame:{name:"Flame Tower",size:2,role:"def",target:"ground",cls:"flame",hq:1,
    desc:"Бьёт по наземным войскам. Основа обороны.",
-   lv:[null,{hp:420,ice:140,t:6,dmg:20,range:3.6,cd:0.7},{hp:560,ice:600,t:20,dmg:30,range:3.8,cd:0.7},
-       {hp:740,ice:2400,t:45,dmg:46,range:4.0,cd:0.65},{hp:980,ice:7500,t:100,dmg:66,range:4.3,cd:0.6},
-       {hp:1300,ice:19000,t:180,dmg:94,range:4.6,cd:0.55}]},
+   lv:buildLv({hp:[420,1.31],ice:[140,2.25],t:[8,1.5],dmg:[20,1.34],range:[3.6,0.12],cd:[0.7,0.97]})},
  aa:{name:"Anti-Air",size:2,role:"def",target:"air",cls:"aa",hq:2,
    desc:"Только по авиации. Без неё Skyfire безнаказан.",
-   lv:[null,{hp:380,ice:240,t:10,dmg:34,range:4.6,cd:0.5},{hp:520,ice:900,t:28,dmg:50,range:4.8,cd:0.48},
-       {hp:720,ice:3200,t:60,dmg:74,range:5.0,cd:0.45},{hp:980,ice:9500,t:130,dmg:108,range:5.3,cd:0.42}]},
+   lv:buildLv({hp:[380,1.31],ice:[240,2.2],t:[10,1.5],dmg:[34,1.32],range:[4.6,0.1],cd:[0.5,0.98]})},
  mortar:{name:"Mortar",size:2,role:"def",target:"ground",splash:1.3,cls:"mortar",hq:3,
    desc:"Сплеш-урон по группе наземных. Медленная.",
-   lv:[null,{hp:460,ice:320,t:12,dmg:44,range:5.0,cd:2.4},{hp:640,ice:1200,t:35,dmg:66,range:5.2,cd:2.2},
-       {hp:900,ice:4000,t:80,dmg:96,range:5.4,cd:2.0}]},
+   lv:buildLv({hp:[460,1.31],ice:[320,2.2],t:[12,1.5],dmg:[44,1.33],range:[5.0,0.08],cd:[2.4,0.98]})},
 
  wall:{name:"Wall",size:1,role:"wall",cls:"wall",hq:1,
    desc:"Преграда. Тормозит штурм (Blaze бьёт поверх).",
-   lv:[null,{hp:700,ice:20,t:0},{hp:1300,ice:80,t:3},{hp:2200,ice:300,t:8},{hp:3500,ice:1000,t:20},{hp:5400,ice:3200,t:40}]},
+   lv:buildLv({hp:[700,1.4],ice:[20,2.2],t:[2,1.4],t1:0})},
 };
 const BUILD_GROUPS={
  eco:["icemine","stonepump","icestore","stonestore"],
@@ -1451,7 +1460,7 @@ function genEnemyBase(styleKey){
   // 4) СТЕНЫ — замкнутый периметр вокруг всей базы (фортресс — ещё внутреннее кольцо у штаба)
   let minx=99,miny=99,maxx=-1,maxy=-1;
   for(const b of eb){const s=BT[b.type].size;minx=Math.min(minx,b.gx);miny=Math.min(miny,b.gy);maxx=Math.max(maxx,b.gx+s-1);maxy=Math.max(maxy,b.gy+s-1);}
-  const wlv=Math.max(1,Math.min(5,lvl<=1?1:lvl-1));
+  const wlv=Math.max(1,Math.min(MAXLV,lvl<=1?1:lvl-1));
   const x0=minx-1,y0=miny-1,x1=maxx+1,y1=maxy+1,perim=[];
   for(let x=x0;x<=x1;x++){perim.push([x,y0]);perim.push([x,y1]);}
   for(let y=y0+1;y<y1;y++){perim.push([x0,y]);perim.push([x1,y]);}
