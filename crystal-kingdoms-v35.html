@@ -1071,7 +1071,7 @@ function drawUnit(u){
 }
 
 /* ===== РЕНДЕР ===== */
-let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null,hoverObj=null;
+let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null,hoverObj=null,pvpList=null;
 /* ===== ЗВУК + ЧАСТИЦЫ + ТРЯСКА (сочность) ===== */
 let AC=null,sndOn=(typeof localStorage!=="undefined"&&localStorage.getItem("ck_snd")!=="0");
 function actx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
@@ -1248,16 +1248,31 @@ const RAID_STYLES={
  airdef:{name:"Небосвод",def:1.2,wall:1,loot:0.9,troph:1.25,aaBonus:3,desc:"Усиленное ПВО — авиацию собьют."},
 };
 const OPP_NAMES=["IRONCLAW","FROSTBANE","DRAKKAR","VORTEX","NIGHTHOLD","STORMWALL","EMBERLORD","CRYOFANG","BLACKMOON","TITANGRAD","RAVENROCK","GOLDFIST"];
+// единый конструктор боевого здания врага (для ботов и для PvP)
+function mkEnemy(eb,type,gx,gy,level){const d=BT[type];if(!d)return null;
+  const maxL=(type==="hq"?HQ_MAX:d.lv.length-1);level=Math.max(1,Math.min(level,maxL));
+  const hp=(type==="hq"?HQ[level].hp:d.lv[level].hp);
+  const o={type,gx,gy,level,hp,maxhp:hp,cd:0,built:true};
+  if(d.role==="def"){o.dmg=d.lv[level].dmg;o.range=d.lv[level].range;o.cdv=d.lv[level].cd;o.target=d.target;o.splash=d.splash||0;}
+  eb.push(o);return o;}
+// собрать атакуемую базу из снапшота реального игрока (Supabase)
+function baseFromSnapshot(snap){
+  const eb=[],dat=(snap&&snap.data)||{},lvl=Math.max(1,Math.min(HQ_MAX,snap.hq||1));
+  for(const b of (dat.b||[])){const o=mkEnemy(eb,b.t,b.x,b.y,b.l||1);if(o&&b.f)o.flip=1;}
+  const hq=eb.find(b=>b.type==="hq");if(!hq||!eb.length)return null;
+  const lootIce=Math.round(420*lvl+Math.random()*260*lvl),
+        lootStone=Math.round(240*lvl+Math.random()*160*lvl),
+        lootGem=Math.max(0,Math.round((lvl-1)*0.6+(Math.random()<0.4?1:0)));
+  const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore"),se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
+  distribute(ie.length?ie:eb,"ice",lootIce);distribute(se.length?se:eb,"stone",lootStone);hq.gem=lootGem;
+  return{list:eb,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:"pvp",styleName:"Игрок",desc:"",
+    trophyWin:Math.round(18+lvl*5),name:(snap.name||"Игрок"),pvp:true,oppId:snap.id};
+}
 function genEnemyBase(styleKey){
   const st=RAID_STYLES[styleKey]||RAID_STYLES.balanced;
   const lvl=Math.max(1,Math.min(HQ_MAX,S.hqLevel+(Math.random()<0.4?1:0)));
   const eb=[];const cx=Math.floor(GRID/2),cy=Math.floor(GRID/2);
-  const mk=(type,gx,gy,level)=>{const d=BT[type];
-    const maxL=(type==="hq"?HQ_MAX:d.lv.length-1);level=Math.max(1,Math.min(level,maxL)); // не выше макс. уровня здания
-    const hp=(type==="hq"?HQ[level].hp:d.lv[level].hp);
-    const o={type,gx,gy,level,hp,maxhp:hp,cd:0,built:true};
-    if(d.role==="def"){o.dmg=d.lv[level].dmg;o.range=d.lv[level].range;o.cdv=d.lv[level].cd;o.target=d.target;o.splash=d.splash||0;}
-    eb.push(o);};
+  const mk=(type,gx,gy,level)=>mkEnemy(eb,type,gx,gy,level);
   const free=(gx,gy,s)=>{if(gx<2||gy<2||gx+s>GRID-2||gy+s>GRID-2)return false;
     for(const b of eb){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+s>b.gx&&gy<b.gy+bs&&gy+s>b.gy)return false;}return true;};
   const tryP=(type,level,gx,gy)=>{const s=BT[type].size;if(free(gx,gy,s)){mk(type,gx,gy,level);return true;}return false;};
@@ -1303,15 +1318,27 @@ function openScout(){
     refreshTop();renderSide();updHelp();return true;}
   catch(e){toast("Ошибка похода: "+(e&&e.message||e));mode="build";scout=null;return false;}
 }
-// начать рейд по выбранной базе
-function beginRaid(i){const c=scout&&scout[i];if(!c)return;
+// начать рейд из конфигурации базы (боты и PvP — общий путь)
+function startWarFrom(c){
   const hasHero=S.hero&&Date.now()>=(S.hero.readyAt||0);
   war={enemy:c.list,lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
     heroAvail:hasHero,heroUsed:false,units:[],shots:[],blasts:[],over:false,
     start:c.list.length,lootedIce:0,lootedStone:0,lootedGem:0,
-    trophyWin:c.trophyWin,styleName:c.styleName,oppName:c.name};
-  scout=null;sel=null;buildSel=null;refreshTop();renderSide();updHelp();
+    trophyWin:c.trophyWin,styleName:c.styleName,oppName:c.name,pvp:!!c.pvp,oppId:c.oppId||null};
+  scout=null;pvpList=null;sel=null;buildSel=null;refreshTop();renderSide();updHelp();
 }
+function beginRaid(i){const c=scout&&scout[i];if(!c)return;startWarFrom(c);}
+// PvP: список реальных игроков и атака на их базу
+function loadPvpTargets(){toast("Ищу противников…");
+  fetch(SB_URL+"/islands?select=id,name,trophies,hq,updated_at&order=updated_at.desc&limit=60",{headers:SB_H})
+    .then(r=>r.json()).then(rows=>{pvpList=(Array.isArray(rows)?rows:[]).filter(r=>r.id!==playerId);renderSide();
+      if(!pvpList.length)toast("Пока нет других игроков — загляни позже");})
+    .catch(()=>toast("Не удалось загрузить игроков"));}
+function beginRaidPvP(id){toast("Загружаю базу игрока…");
+  fetch(SB_URL+"/islands?id=eq."+encodeURIComponent(id)+"&select=*",{headers:SB_H})
+    .then(r=>r.json()).then(rows=>{const r=rows&&rows[0];if(!r){toast("Остров не найден");return;}
+      const c=baseFromSnapshot(r);if(!c){toast("База игрока пуста");return;}startWarFrom(c);})
+    .catch(()=>toast("Ошибка загрузки базы"));}
 function deployAt(gx,gy){
   if(!war||war.over)return;
   let px=gx,py=gy;const dl=gx,dr=GRID-gx,dt=gy,db=GRID-gy,m=Math.min(dl,dr,dt,db);
@@ -1399,13 +1426,14 @@ function endWar(win){
   S.trophies=(S.trophies||0)+dTroph;
   save();showResult(win,pct,stars,gIce,gStone,gGem,dTroph);
 }
-function resetWar(){war=null;scout=null;mode="build";document.getElementById("mBuild").classList.add("on");document.getElementById("mWar").classList.remove("on");refreshTop();renderSide();updHelp();}
+function resetWar(){war=null;scout=null;pvpList=null;mode="build";document.getElementById("mBuild").classList.add("on");document.getElementById("mWar").classList.remove("on");refreshTop();renderSide();updHelp();}
 
 /* ===== ДИАЛОГ РЕЗУЛЬТАТА ===== */
 function showResult(win,pct,stars,ice,stone,gem,troph){
   const d=document.getElementById("dialog"),st="★".repeat(stars)+"☆".repeat(3-stars);
+  const oppLine=(war&&war.pvp)?`<div class="sub" style="color:#9fe0ff">🌐 против ${war.oppName||"игрока"}</div>`:"";
   d.innerHTML=`<h2 style="color:${win?'#5ce0a8':'#ff8b8b'}">${win?'Победа!':'Поражение'}</h2>
-    <div class="sub">База разрушена на ${pct}%</div><div class="stars" style="color:#ffce5c">${st}</div>
+    ${oppLine}<div class="sub">База разрушена на ${pct}%</div><div class="stars" style="color:#ffce5c">${st}</div>
     <div class="sub" style="color:#ffce5c;font-weight:700;margin:4px 0">🏆 +${troph||0} трофеев · всего ${fmt(S.trophies||0)}</div>
     <div class="loot"><div><canvas id="lcI" width="30" height="30"></canvas>+${fmt(ice)}</div>
       <div><canvas id="lcS" width="30" height="30"></canvas>+${fmt(stone)}</div>
@@ -1613,6 +1641,22 @@ function wireBuildingPanel(b){const q=id=>document.getElementById(id);
 }
 function warSide(){
   if(!war){
+    if(pvpList){ // ── PvP: список реальных игроков ──
+      let h=`<div class="sideTitle">🌐 Реальные игроки</div>`;
+      h+=`<div class="card" style="cursor:default"><div class="ds">Нападай на базы настоящих игроков (их реальные расстановки из онлайна). Победа — трофеи и добыча.</div></div>`;
+      if(!pvpList.length)h+=`<div class="card" style="cursor:default"><div class="ds">Пока нет других игроков. Список пополняется, когда играют другие — попробуй позже.</div></div>`;
+      for(const r of pvpList){const lvl=r.hq||1,li=Math.round(420*lvl),ls=Math.round(240*lvl),tr=Math.round(18+lvl*5);
+        h+=`<div class="raidCard"><div class="rcTop"><span class="rcName">🌐 ${(r.name||"Игрок")}</span><span class="rcLvl">HQ ${lvl} · 🏆 ${r.trophies||0}</span></div>
+          <div class="rcLoot"><span><span class="dot ice"></span>~${fmt(li)}</span><span><span class="dot stone"></span>~${fmt(ls)}</span><span class="rcTroph">🏆 +${tr}</span></div>
+          <button class="btn go" data-pvp="${r.id}">Атаковать</button></div>`;}
+      h+=`<button class="btn ghost" id="pvpReload" style="margin-top:2px">🔄 Обновить список</button>`;
+      h+=`<button class="btn ghost" id="pvpBack" style="margin-top:6px">← К тренировочным базам</button>`;
+      side.innerHTML=h;
+      side.querySelectorAll("[data-pvp]").forEach(el=>el.onclick=()=>beginRaidPvP(el.getAttribute("data-pvp")));
+      document.getElementById("pvpReload").onclick=loadPvpTargets;
+      document.getElementById("pvpBack").onclick=()=>{pvpList=null;renderSide();};
+      return;
+    }
     if(!scout)scout=scoutBases();
     let h=`<div class="sideTitle">⚔ Разведка — выбери цель</div>`;
     h+=`<div class="card" style="cursor:default"><div class="ds">Чем мощнее оборона базы — тем больше 🏆 трофеев за победу, но тем сложнее её взять.</div></div>`;
@@ -1623,10 +1667,12 @@ function warSide(){
         <div class="rcLoot"><span><span class="dot ice"></span>${fmt(c.loot.ice)}</span><span><span class="dot stone"></span>${fmt(c.loot.stone)}</span>${c.loot.gem?`<span><span class="dot gem"></span>${c.loot.gem}</span>`:""}<span class="rcTroph">🏆 +${c.trophyWin}</span></div>
         <button class="btn go" data-raid="${i}">Атаковать</button></div>`;
     });
-    h+=`<button class="btn ghost" id="rerollBtn" style="margin-top:2px">🔄 Найти другие базы</button>`;
+    h+=`<button class="btn go" id="pvpBtn" style="margin-top:2px;background:linear-gradient(180deg,#2a8f5a,#1c6e44);border-color:#45c98a">🌐 Напасть на реального игрока</button>`;
+    h+=`<button class="btn ghost" id="rerollBtn" style="margin-top:6px">🔄 Найти другие базы</button>`;
     side.innerHTML=h;
     side.querySelectorAll("[data-raid]").forEach(el=>el.onclick=()=>beginRaid(+el.getAttribute("data-raid")));
     document.getElementById("rerollBtn").onclick=()=>{scout=scoutBases();renderSide();};
+    document.getElementById("pvpBtn").onclick=loadPvpTargets;
     return;
   }
   let h=`<div class="sideTitle">⚔ ${war.oppName||"Враг"} · ур.${war.lvl} · ${war.styleName||""}</div>`;
