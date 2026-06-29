@@ -147,6 +147,7 @@
   #adminPanel label.ap-check input{width:auto;accent-color:#e6b94a;cursor:pointer}
   #adminPanel .ap-sep{height:1px;background:var(--line);margin:9px 0}
   #adminPanel input[type=number]{width:100%;background:#0a1830;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px}
+  #adminPanel select{width:100%;background:#0a1830;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:6px;font-size:13px}
   #overlay{position:absolute;inset:0;background:rgba(4,8,18,.78);display:none;align-items:center;justify-content:center;z-index:20;backdrop-filter:blur(2px)}
   #overlay.show{display:flex}
   .dialog{background:linear-gradient(180deg,#12264c,#0c1830);border:1px solid #3f8fe0;border-radius:16px;padding:20px;width:min(380px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
@@ -330,8 +331,18 @@
         <button class="btn up" id="apSet">Выдать ресурсы</button>
         <button class="btn up" id="apMaxAll" style="margin-top:7px">🏗 Построить всё (макс)</button>
         <div class="ap-sep"></div>
-        <label>Врагов для атаки на базу <input id="apEnemyN" type="number" value="20"></label>
-        <button class="btn up" id="apAttack" style="margin-top:4px">⚔ Спавн атаки на мою базу</button>
+        <label>Тип атакующих
+          <select id="apEnemyType">
+            <option value="raider">Враг (обычный)</option>
+            <option value="striker">Striker</option>
+            <option value="brute">Brute (танк)</option>
+            <option value="marine">Marine (дальник)</option>
+            <option value="blaze">Blaze (сквозь стены)</option>
+            <option value="skyfire">Skyfire (воздух)</option>
+          </select></label>
+        <label>Сколько <input id="apEnemyN" type="number" value="20"></label>
+        <button class="btn up" id="apAttack" style="margin-top:4px">⚔ Спавн атаки на базу</button>
+        <button class="btn ghost" id="apClearAtk" style="margin-top:6px">✖ Убрать атаку</button>
         <button class="btn ghost" id="apReset" style="margin-top:7px">Сбросить игру</button>
         <button class="btn ghost" id="apClose" style="margin-top:7px">Закрыть</button>
       </div>
@@ -509,7 +520,8 @@ function freshState(){
     admin:{infRes:false,instaBuild:false,instaArmy:false},
     lastTs:Date.now()};
 }
-function save(){try{S.lastTs=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}publishIsland(false);}
+function save(){if(typeof siege!=="undefined"&&siege.units.length)return; // во время осады HP временно занижены — не сохраняем
+  try{S.lastTs=Date.now();localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}publishIsland(false);}
 /* ===== ОНЛАЙН-ВИЗИТЫ (Supabase) ===== */
 const SB_URL="https://wushnxfwmsgmummijzzy.supabase.co/rest/v1";
 const SB_KEY="sb_publishable_jCwr5baNK3ttGMRh7JBmNg_LXCkom77";
@@ -989,7 +1001,7 @@ function drawSpriteBuilding(b,spr){
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
     ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cen[0],by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle="#bfeaff";ctx.font="bold "+(10*ZOOM)+"px Trebuchet MS";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b.level,cen[0],by);}
-  if(mode==="war"&&b.hp<b.maxhp&&b.hp>0)drawBar(cen[0],bottomY-H+6*ZOOM,W*0.5,b.hp/b.maxhp,"#5ce0a8","#3a1d1d");
+  if((mode==="war"||siege.units.length)&&b.hp<b.maxhp&&b.hp>0)drawBar(cen[0],bottomY-H+6*ZOOM,W*0.5,b.hp/b.maxhp,"#5ce0a8","#3a1d1d");
   if(b.built===false){const left=Math.max(0,(b.buildEnd-Date.now())/1000),total=b._dur||1,p=1-left/total;
     drawBar(cen[0],cen[1]-2*ZOOM,W*0.46,p,"#7fd6ff","#0a1830");
     ctx.fillStyle="#cfe6ff";ctx.font="bold "+(11*ZOOM)+"px Trebuchet MS";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("⏳ "+fmtTime(left),cen[0],cen[1]+12*ZOOM);}
@@ -1114,7 +1126,7 @@ function drawBuilding(b){
   if(b.built&&b.type!=="wall"){ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;
     const bx=cx,by=cy+h/2+8*ZOOM;ctx.beginPath();ctx.arc(bx,by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle="#bfeaff";ctx.font="bold "+(10*ZOOM)+"px Trebuchet MS";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b.level,bx,by);}
-  if(mode==="war"&&b.hp<b.maxhp&&b.hp>0)drawBar(cx,cy-baseH-12*ZOOM,wpx*0.7,b.hp/b.maxhp,"#5ce0a8","#3a1d1d");
+  if((mode==="war"||siege.units.length)&&b.hp<b.maxhp&&b.hp>0)drawBar(cx,cy-baseH-12*ZOOM,wpx*0.7,b.hp/b.maxhp,"#5ce0a8","#3a1d1d");
   if(!b.built){const left=Math.max(0,(b.buildEnd-Date.now())/1000),total=b._dur||1,p=1-left/total;
     ctx.fillStyle="rgba(6,12,28,.6)";ctx.beginPath();ctx.moveTo(cx,cy-h/2);ctx.lineTo(cx+w/2,cy);ctx.lineTo(cx,cy+h/2);ctx.lineTo(cx-w/2,cy);ctx.closePath();ctx.fill();
     drawBar(cx,cy-6*ZOOM,wpx*0.7,p,"#7fd6ff","#0a1830");
@@ -1166,6 +1178,7 @@ function drawUnit(u){
 
 /* ===== РЕНДЕР ===== */
 let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null,hoverObj=null,pvpList=null;
+let siege={units:[],shots:[],blasts:[],hp0:null,_ver:0}; // живая осада своей базы (админ-тест, не разрушает)
 /* ===== ЗВУК + ЧАСТИЦЫ + ТРЯСКА (сочность) ===== */
 let AC=null,sndOn=(typeof localStorage!=="undefined"&&localStorage.getItem("ck_snd")!=="0");
 function actx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
@@ -1218,6 +1231,7 @@ function render(){
     if(sel&&BT[sel.type].role==="def"){const d=BT[sel.type];drawRange(sel.gx+d.size/2,sel.gy+d.size/2,d.lv[sel.level].range,d.target==="air"?"120,200,255":"255,120,90",true);} // радиус выбранной башни
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
+    drawSiege(); // живая осада поверх базы
   }else{
     setWalls(war.enemy);
     if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
@@ -1746,7 +1760,7 @@ function showResult(win,pct,stars,ice,stone,gem,troph){
 /* ===== ЦИКЛ ===== */
 let last=performance.now();
 function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;ANIM=now*0.001;
-  if(mode==="build")tickEconomy(dt);else if(war&&!war.over)updateWar(dt);
+  if(mode==="build"){tickEconomy(dt);if(siege.units.length)updateSiege(dt);}else if(war&&!war.over)updateWar(dt);
   updateFx(dt);
   let sx=0,sy=0;
   if(shakeT>0){shakeT=Math.max(0,shakeT-dt);const m=shakeMag*(shakeT/SHAKE_DUR);sx=(Math.random()*2-1)*m;sy=(Math.random()*2-1)*m;oX+=sx;oY+=sy;}
@@ -2003,6 +2017,7 @@ function refreshTop(){const c=caps();
 /* ===== РЕЖИМЫ / ПОДСКАЗКА / КНОПКИ ===== */
 function setMode(m){
   if(m==="war"){if(mode==="war")return;
+    if(siege.units.length)endSiege(); // осаду на базе завершаем перед походом
     if(!openScout())return;
     closeCatalog();document.getElementById("catOpen").style.display="none";
     document.getElementById("mWar").classList.add("on");document.getElementById("mBuild").classList.remove("on");
@@ -2091,27 +2106,71 @@ function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!
 apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();renderSide();toast(apInfRes.checked?"Бесконечные ресурсы: вкл":"Бесконечные ресурсы: выкл");};
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
-// АДМИН: спавн вражеской атаки на свою базу (тест обороны, без вреда реальной базе)
-function startDefenseTest(n){
-  if(visit)return;
-  const eb=[];
-  for(const b of S.buildings){if(!b.built)continue;const o=mkEnemy(eb,b.type,b.gx,b.gy,b.level);if(o&&b.flip)o.flip=1;}
-  if(!eb.length||!eb.find(function(b){return b.type==="hq";})){toast("Нужны построенные здания");return;}
-  const deco=(S.obstacles||[]).filter(function(o){return !(o.beach||OB[o.type].beach);}).map(function(o){return{ob:true,type:o.type,gx:o.gx,gy:o.gy,flip:o.flip?1:0,deco:1};});
-  war={enemy:eb,deco:deco,units:[],shots:[],blasts:[],over:false,wallVer:0,test:true,start:eb.length,lvl:S.hqLevel,
-    reserve:{},heroAvail:false,heroUsed:false,lootedIce:0,lootedStone:0,lootedGem:0,trophyWin:0,styleName:"Тест обороны",oppName:"Атака на базу"};
+/* ===== ЖИВАЯ ОСАДА своей базы (админ): враги атакуют, оборона стреляет, ты свободно строишь ===== */
+function spawnSiege(type,n){
+  if(visit||mode==="war"){toast("Доступно на базе");return;}
+  if(!S.buildings.some(b=>b.built)){toast("Сначала построй здания");return;}
+  if(!siege.hp0)siege.hp0=S.buildings.map(b=>({b:b,hp:b.hp,maxhp:b.maxhp})); // снимок HP — восстановим после
   n=Math.max(1,Math.min(300,Math.floor(n)||0));
   for(let i=0;i<n;i++){const e=Math.floor(Math.random()*4),t=0.5+Math.random()*(GRID-1);let gx,gy;
     if(e===0){gx=t;gy=0.5;}else if(e===1){gx=t;gy=GRID-0.5;}else if(e===2){gx=0.5;gy=t;}else{gx=GRID-0.5;gy=t;}
-    const tank=Math.random()<0.3;
-    war.units.push({type:"raider",def:{color:tank?"#c83c3c":"#ff7b6b"},gx:gx,gy:gy,
-      hp:tank?2200:700,maxhp:tank?2200:700,dmg:tank?70:45,speed:tank?0.6:1.0,
-      ranged:0,air:0,prefDef:0,ignoreWall:0,target:null,atkcd:0,_atk:0});}
-  mode="war";sel=null;buildSel=null;moving=null;
+    let u;
+    if(UT[type]){const d=UT[type];u={type:type,def:d,gx:gx,gy:gy,hp:d.hp,maxhp:d.hp,dmg:d.dmg,speed:d.speed,ranged:d.ranged||0,air:d.air?1:0,prefDef:d.prefDef?1:0,ignoreWall:d.ignoreWall?1:0,target:null,atkcd:0,_atk:0};}
+    else u={type:"raider",def:{color:"#ff7b6b"},gx:gx,gy:gy,hp:800,maxhp:800,dmg:55,speed:0.95,ranged:0,air:0,prefDef:0,ignoreWall:0,target:null,atkcd:0,_atk:0};
+    siege.units.push(u);}
+  siege._ver++;
   if(typeof adminPanel!=="undefined")adminPanel.classList.remove("show");
-  closeCatalog();document.getElementById("catOpen").style.display="none";
-  document.getElementById("mWar").classList.add("on");document.getElementById("mBuild").classList.remove("on");
-  refreshTop();renderSide();updHelp();toast("⚔ Атака на базу: "+n+" врагов! (Отступить — завершить)");
+  toast("⚔ "+n+" × "+(UT[type]?UT[type].name:"Враг")+" атакуют базу! (строй спокойно)");
+}
+function endSiege(){if(!siege.units.length&&!siege.hp0)return;
+  for(const b of S.buildings){b.hp=b.maxhp;b._cd=0;} // полностью восстановить базу
+  siege.units=[];siege.shots=[];siege.blasts=[];siege.hp0=null;
+  save(); toast("🛡 Атака убрана — база восстановлена");}
+function siegeGrid(){const g=Array.from({length:GRID},()=>new Uint8Array(GRID));
+  for(const b of S.buildings){if(!b.built||b.type!=="wall"||b.hp<=0)continue;for(let y=b.gy;y<b.gy+1;y++)for(let x=b.gx;x<b.gx+1;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)g[y][x]=1;}return g;}
+function nearestBld(u){let best=null,bd=1e9;for(const b of S.buildings){if(!b.built||b.hp<=0)continue;if((u.ignoreWall||u.air)&&b.type==="wall")continue;let w=1;if(u.prefDef&&BT[b.type].role!=="def")w=2.4;const s=BT[b.type].size,dd=Math.hypot(b.gx+s/2-u.gx,b.gy+s/2-u.gy)*w;if(dd<bd){bd=dd;best=b;}}return best;}
+function nearestWallBld(u){let best=null,bd=1e9;for(const b of S.buildings){if(!b.built||b.type!=="wall"||b.hp<=0)continue;const dd=Math.hypot(b.gx+0.5-u.gx,b.gy+0.5-u.gy);if(dd<bd){bd=dd;best=b;}}return best;}
+function updateSiege(dt){
+  if(!siege.units.length)return;
+  const grid=siegeGrid();
+  for(const u of siege.units){ if(u.hp<=0)continue; u._atk=Math.max(0,u._atk-dt*3);
+    if(!u.target||u.target.hp<=0||u.target.built===false){u.target=nearestBld(u);u._path=null;u._pt=null;}
+    const t=u.target; if(!t)continue;
+    const s=BT[t.type].size,cxg=t.gx+s/2,cyg=t.gy+s/2,dx=cxg-u.gx,dy=cyg-u.gy,d=Math.hypot(dx,dy)||1e-6;
+    const reach=(u.ranged?u.ranged:0.9)+s*0.45;
+    if(d<=reach){u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=u.dmg;if(t.hp<1)t.hp=1;u.atkcd=0.7;u._atk=1;
+        const tsx=iso(cxg,cyg);burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");
+        if(u.ranged||u.air){sfx("shoot");siege.shots.push({x1:u.gx,y1:u.gy,x2:cxg,y2:cyg,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":"rgba(255,140,90,.9)"});}}
+      continue;}
+    u.moving=true;
+    if(u.air||u.ignoreWall){u.gx+=dx/d*u.speed*dt;u.gy+=dy/d*u.speed*dt;continue;}
+    if(!u._path||u._pt!==t||u._ver!==siege._ver){const p=findPath(u,t,grid);
+      if(p===null){const w=nearestWallBld(u);if(w&&w!==t){u.target=w;u._path=null;u._pt=null;u._ver=siege._ver;continue;}u._path=[];}
+      else u._path=p; u._pt=t;u._ver=siege._ver;u._pi=0;}
+    let aimX=cxg,aimY=cyg;
+    if(u._path&&u._path.length&&u._pi<u._path.length){const wp=u._path[u._pi];aimX=wp[0];aimY=wp[1];if(Math.hypot(aimX-u.gx,aimY-u.gy)<0.3)u._pi++;}
+    const adx=aimX-u.gx,ady=aimY-u.gy,ad=Math.hypot(adx,ady)||1e-6;u.gx+=adx/ad*u.speed*dt;u.gy+=ady/ad*u.speed*dt;
+  }
+  for(const b of S.buildings){ if(!b.built||b.hp<=0){b._cd=0;continue;} const d=BT[b.type]; if(d.role!=="def")continue;
+    const lv=d.lv[b.level]; b._cd=(b._cd||0)-dt; if(b._cd>0)continue;
+    let best=null,bd=lv.range; const tgt=d.target;
+    for(const u of siege.units){if(u.hp<=0)continue;if(tgt==="ground"&&u.air)continue;if(tgt==="air"&&!u.air)continue;
+      const dd=Math.hypot(b.gx+d.size/2-u.gx,b.gy+d.size/2-u.gy);if(dd<bd){bd=dd;best=u;}}
+    if(best){b._cd=lv.cd;sfx("shoot");
+      siege.shots.push({x1:b.gx+d.size/2,y1:b.gy+d.size/2,x2:best.gx,y2:best.gy,life:0.1,col:tgt==="air"?"rgba(159,224,255,.95)":"rgba(255,160,90,.9)"});
+      if(d.splash){siege.blasts.push({x:best.gx,y:best.gy,r:d.splash,life:0.6});const bsx=iso(best.gx,best.gy);burst(bsx[0],bsx[1],8,"rgba(255,150,70,.95)",{spd:90,life:0.45,size:3});addShake(3);
+        for(const u of siege.units){if(u.hp<=0||u.air)continue;if(Math.hypot(u.gx-best.gx,u.gy-best.gy)<=d.splash)u.hp-=lv.dmg;}}
+      else best.hp-=lv.dmg;}
+  }
+  siege.shots=siege.shots.filter(s=>(s.life-=dt)>0);
+  siege.blasts=siege.blasts.filter(b=>(b.life-=dt*1.6)>0);
+  if(!siege.units.some(u=>u.hp>0))endSiege();
+}
+function drawSiege(){ if(!siege.units.length)return;
+  for(const u of siege.units)if(u.hp>0)drawUnit(u);
+  for(const sh of siege.shots){const[x1,y1]=iso(sh.x1,sh.y1),[x2,y2]=iso(sh.x2,sh.y2);
+    ctx.strokeStyle=sh.col;ctx.lineWidth=2.2*ZOOM;ctx.beginPath();ctx.moveTo(x1,y1-(sh.fromAir?14*ZOOM:0));ctx.lineTo(x2,y2);ctx.stroke();}
+  for(const bl of siege.blasts){const[x,y]=iso(bl.x,bl.y);ctx.strokeStyle="rgba(255,160,90,"+bl.life+")";ctx.lineWidth=3*ZOOM;ctx.beginPath();ctx.arc(x,y,bl.r*TW/2*ZOOM,0,7);ctx.stroke();}
 }
 // мгновенно отстроить полную базу на максимальном уровне
 function buildAllMax(){
@@ -2137,7 +2196,8 @@ function buildAllMax(){
   save();refreshTop();renderSide();toast("База отстроена: +"+added+" зданий, всё на максимуме");
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
-document.getElementById("apAttack").onclick=()=>{const n=+document.getElementById("apEnemyN").value||20;startDefenseTest(n);};
+document.getElementById("apAttack").onclick=()=>{const n=+document.getElementById("apEnemyN").value||20,ty=document.getElementById("apEnemyType").value;spawnSiege(ty,n);};
+document.getElementById("apClearAtk").onclick=()=>endSiege();
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){
   const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList"),ql=document.getElementById("questList");
