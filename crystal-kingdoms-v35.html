@@ -441,17 +441,17 @@ const BT={
 
  flame:{name:"Flame Tower",size:2,role:"def",target:"ground",cls:"flame",hq:1,
    desc:"Бьёт по наземным войскам. Основа обороны.",
-   lv:buildLv({hp:[420,1.31],ice:[140,2.25],t:[8,1.5],dmg:[20,1.34],range:[3.6,0.12],cd:[0.7,0.97]})},
+   lv:buildLv({hp:[420,1.31],ice:[140,2.25],t:[8,1.5],dmg:[20,1.34],range:[3.4,0.09],cd:[0.7,0.97]})},
  aa:{name:"Anti-Air",size:2,role:"def",target:"air",cls:"aa",hq:2,
    desc:"Только по авиации. Без неё Skyfire безнаказан.",
-   lv:buildLv({hp:[380,1.31],ice:[240,2.2],t:[10,1.5],dmg:[34,1.32],range:[4.6,0.1],cd:[0.5,0.98]})},
+   lv:buildLv({hp:[380,1.31],ice:[240,2.2],t:[10,1.5],dmg:[34,1.32],range:[6.5,0.22],cd:[0.5,0.98]})},
  mortar:{name:"Mortar",size:2,role:"def",target:"ground",splash:1.3,cls:"mortar",hq:3,
    desc:"Сплеш-урон по группе наземных. Медленная.",
-   lv:buildLv({hp:[460,1.31],ice:[320,2.2],t:[12,1.5],dmg:[44,1.33],range:[5.0,0.08],cd:[2.4,0.98]})},
+   lv:buildLv({hp:[460,1.31],ice:[320,2.2],t:[12,1.5],dmg:[44,1.33],range:[5.5,0.11],cd:[2.4,0.98]})},
 
  wall:{name:"Wall",size:1,role:"wall",cls:"wall",hq:1,
    desc:"Преграда. Тормозит штурм (Blaze бьёт поверх).",
-   lv:buildLv({hp:[700,1.4],ice:[20,2.2],t:[2,1.4],t1:0})},
+   lv:buildLv({hp:[700,1.33],ice:[20,2.2],t:[2,1.4],t1:0})},
 };
 const BUILD_GROUPS={
  eco:["icemine","stonepump","icestore","stonestore"],
@@ -1194,7 +1194,9 @@ function render(){
   }else if(mode==="build"||!war){
     hoverObj=null;
     const ptr=hoverTile||mouseTile;  // позиция курсора (наведение работает и без нажатия)
-    if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
+    if(buildSel&&ptr){const s=BT[buildSel].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=canPlace(buildSel,gx,gy);
+      if(BT[buildSel].role==="def")drawRange(gx+s/2,gy+s/2,BT[buildSel].lv[1].range,BT[buildSel].target==="air"?"120,200,255":"255,120,90",true); // радиус при установке
+      drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     else if(!moving&&hoverTile){
       const hb=buildingAt(hoverTile[0],hoverTile[1]);
       const ho=hb?null:((hoverPx&&obstacleAtScreen(hoverPx[0],hoverPx[1]))||obstacleAt(hoverTile[0],hoverTile[1]));
@@ -1206,10 +1208,13 @@ function render(){
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
     setWalls(S.buildings);
+    if(sel&&BT[sel.type].role==="def"){const d=BT[sel.type];drawRange(sel.gx+d.size/2,sel.gy+d.size/2,d.lv[sel.level].range,d.target==="air"?"120,200,255":"255,120,90",true);} // радиус выбранной башни
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
   }else{
     setWalls(war.enemy);
+    if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
+      drawRange(b.gx+1,b.gy+1,b.range,b.target==="air"?"120,200,255":"255,90,90",false);}
     const ents=[];
     for(const b of war.enemy)if(b.hp>0)ents.push({k:"b",o:b,d:b.gx+b.gy+BT[b.type].size});
     for(const o of (war.deco||[]))ents.push({k:"d",o,d:o.gx+o.gy+OB[o.type].size});  // декорации (визуальные)
@@ -1233,6 +1238,11 @@ function render(){
 function drawDeployMarker(gx,gy,blocked){const[cx,cy]=iso(gx,gy),pul=0.5+0.5*Math.sin(ANIM*5);
   ctx.save();ctx.globalAlpha=0.5+0.45*pul;ctx.strokeStyle=blocked?"#ff8b6b":"#7dffa0";ctx.lineWidth=2.5*ZOOM;
   const rr=(13+pul*7)*ZOOM;ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*0.5,0,0,7);ctx.stroke();ctx.restore();}
+// радиус действия обороны (изо-эллипс): cgx,cgy — центр здания в клетках, range — в клетках
+function drawRange(cgx,cgy,range,rgb,strong){const[cx,cy]=iso(cgx,cgy);const rx=range*TW*ZOOM/Math.SQRT2,ry=rx/2;
+  ctx.save();ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,0,7);
+  ctx.fillStyle="rgba("+rgb+","+(strong?0.10:0.0)+")";if(strong)ctx.fill();
+  ctx.strokeStyle="rgba("+rgb+","+(strong?0.75:0.22)+")";ctx.lineWidth=(strong?2:1.2);ctx.setLineDash([6,5]);ctx.stroke();ctx.setLineDash([]);ctx.restore();}
 function drawFootprintHi(gx,gy,s){for(let y=0;y<s;y++)for(let x=0;x<s;x++)drawHoverCell(gx+x,gy+y);}
 function drawHoverCell(gx,gy){const[cx,cy]=iso(gx+0.5,gy+0.5),wpx=TW*ZOOM,h=wpx*0.5;
   ctx.save();ctx.fillStyle="rgba(230,185,74,.16)";ctx.strokeStyle="rgba(230,185,74,.9)";ctx.lineWidth=2;
