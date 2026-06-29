@@ -1201,11 +1201,25 @@ function render(){
     for(const bl of war.blasts){const[x,y]=iso(bl.x,bl.y);ctx.strokeStyle="rgba(255,160,90,"+bl.life+")";ctx.lineWidth=3*ZOOM;ctx.beginPath();ctx.arc(x,y,bl.r*TW/2*ZOOM,0,7);ctx.stroke();}
     if(!war.over){ctx.strokeStyle="rgba(92,224,168,.5)";ctx.lineWidth=1.5;ctx.setLineDash([6,5]);
       const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
-      ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();ctx.setLineDash([]);}
+      ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();ctx.setLineDash([]);
+      if(hoverTile){let px=Math.max(0.5,Math.min(GRID-0.5,hoverTile[0])),py=Math.max(0.5,Math.min(GRID-0.5,hoverTile[1]));
+        const blocked=deployBlocked(px,py);if(blocked){const f=freeDeploySpot(px,py);px=f[0];py=f[1];}
+        drawDeployMarker(px,py,blocked);}}                      // подсветка места высадки (как в CoC)
   }
   drawFx();
   positionFloatBar();
 }
+// маркер места высадки в бою (пульсирующая клетка + кольцо + стрелка)
+function drawDeployMarker(gx,gy,blocked){const[cx,cy]=iso(gx,gy),w=TW*ZOOM,h=w*0.5,pul=0.5+0.5*Math.sin(ANIM*5);
+  const fill=blocked?"rgba(255,120,90,.22)":"rgba(120,235,150,.26)",line=blocked?"#ff8b6b":"#7dffa0";
+  ctx.save();
+  ctx.fillStyle=fill;ctx.strokeStyle=line;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(cx,cy-h/2);ctx.lineTo(cx+w/2,cy);ctx.lineTo(cx,cy+h/2);ctx.lineTo(cx-w/2,cy);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.globalAlpha=0.45+0.45*pul;ctx.lineWidth=2;const rr=(11+pul*8)*ZOOM;
+  ctx.beginPath();ctx.ellipse(cx,cy,rr,rr*0.5,0,0,7);ctx.stroke();
+  ctx.globalAlpha=0.95;ctx.fillStyle=line;const ay=cy-(24+pul*5)*ZOOM;
+  ctx.beginPath();ctx.moveTo(cx-7*ZOOM,ay);ctx.lineTo(cx+7*ZOOM,ay);ctx.lineTo(cx,ay+9*ZOOM);ctx.closePath();ctx.fill();
+  ctx.restore();}
 function drawFootprintHi(gx,gy,s){for(let y=0;y<s;y++)for(let x=0;x<s;x++)drawHoverCell(gx+x,gy+y);}
 function drawHoverCell(gx,gy){const[cx,cy]=iso(gx+0.5,gy+0.5),wpx=TW*ZOOM,h=wpx*0.5;
   ctx.save();ctx.fillStyle="rgba(230,185,74,.16)";ctx.strokeStyle="rgba(230,185,74,.9)";ctx.lineWidth=2;
