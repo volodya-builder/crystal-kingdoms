@@ -329,6 +329,9 @@
         <label>Ruby <input id="apGem" type="number" value="9000"></label>
         <button class="btn up" id="apSet">Выдать ресурсы</button>
         <button class="btn up" id="apMaxAll" style="margin-top:7px">🏗 Построить всё (макс)</button>
+        <div class="ap-sep"></div>
+        <label>Врагов для атаки на базу <input id="apEnemyN" type="number" value="20"></label>
+        <button class="btn up" id="apAttack" style="margin-top:4px">⚔ Спавн атаки на мою базу</button>
         <button class="btn ghost" id="apReset" style="margin-top:7px">Сбросить игру</button>
         <button class="btn ghost" id="apClose" style="margin-top:7px">Закрыть</button>
       </div>
@@ -915,7 +918,7 @@ const SPRITE_FILE_CFG={
   hq:{scale:1.0,base:1.0,dy:0}, icemine:{scale:1.0,base:1.0,dy:0}, stonepump:{scale:1.0,base:1.0,dy:0},
   icestore:{scale:1.0,base:1.0,dy:0}, stonestore:{scale:1.0,base:1.0,dy:0}, camp:{scale:1.0,base:1.0,dy:0},
   factory:{scale:1.0,base:1.0,dy:0}, hangar:{scale:1.0,base:1.0,dy:0}, lab:{scale:1.0,base:1.0,dy:0}, altar:{scale:1.0,base:1.0,dy:0},
-  flame:{scale:1.0,base:1.0,dy:0}, aa:{scale:1.0,base:1.0,dy:0}, mortar:{scale:1.0,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}, cannon:{scale:1.0,base:1.0,dy:0}
+  flame:{scale:1.0,base:1.0,dy:0}, aa:{scale:1.0,base:1.0,dy:0}, mortar:{scale:1.0,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}, cannon:{scale:0.8,base:1.0,dy:0}
 };
 // вырезаем белый фон PNG в прозрачность (flood-fill от краёв), чтобы не было белых квадратов
 function keyOutWhite(im){
@@ -1231,7 +1234,7 @@ function render(){
     if(!war.over){ctx.strokeStyle="rgba(92,224,168,.5)";ctx.lineWidth=1.5;ctx.setLineDash([6,5]);
       const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
       ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();ctx.setLineDash([]);
-      if(hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID){ // только в пределах зелёной карты
+      if(!war.test&&hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID){ // только в пределах зелёной карты
         let px=hoverTile[0],py=hoverTile[1];const blocked=deployBlocked(px,py);if(blocked){const f=freeDeploySpot(px,py);px=f[0];py=f[1];}
         drawDeployMarker(px,py,blocked);}}                      // подсветка места высадки (как в CoC)
   }
@@ -1698,6 +1701,11 @@ function updateWar(dt){
 function grabLoot(b){if(b.ice){war.lootedIce+=b.ice;b.ice=0;}if(b.stone){war.lootedStone+=b.stone;b.stone=0;}if(b.gem){war.lootedGem+=b.gem;b.gem=0;}}
 function endWar(win){
   war.over=true;
+  if(war.test){ // тест обороны: без наград, база не меняется (использовалась копия)
+    var left=war.enemy.filter(function(b){return b.hp>0;}).length;
+    if(typeof SND!=="undefined"){win?SND.lose():SND.win();}addShake(6);
+    toast("🛡 Тест окончен — уцелело зданий "+left+"/"+war.start);
+    setTimeout(function(){resetWar();},80);return;}
   if(win){SND.win();addShake(8);}else SND.lose();
   const destroyed=war.enemy.filter(b=>b.hp<=0).length,pct=Math.round(destroyed/war.start*100);
   let stars=0;if(pct>=50)stars++;if(win)stars++;if(pct>=100)stars++;
@@ -1767,7 +1775,7 @@ cv.addEventListener("wheel",e=>{e.preventDefault();const p=evtPos(e);zoomAt(p[0]
 function zoomAt(sx,sy,factor){const before=unIso(sx,sy);ZOOM=Math.max(ZMIN,Math.min(ZMAX,ZOOM*factor));recalcCam();
   const[bx,by]=iso(before[0],before[1]);panX+=sx-bx;panY+=sy-by;recalcCam();}
 function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гостях — только смотреть
-  if(mode==="war"){deployAt(t[0],t[1]);return;}
+  if(mode==="war"){if(!(war&&war.test))deployAt(t[0],t[1]);return;}
   if(moving){const s=BT[moving.type].size,gx=Math.floor(t[0]-s/2),gy=Math.floor(t[1]-s/2);
     if(areaFree(gx,gy,s,moving)){moving.gx=gx;moving.gy=gy;moving=null;save();renderSide();toast("Перемещено");}else toast("Сюда нельзя");return;}
   if(buildSel){
@@ -2083,13 +2091,37 @@ function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!
 apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();renderSide();toast(apInfRes.checked?"Бесконечные ресурсы: вкл":"Бесконечные ресурсы: выкл");};
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
+// АДМИН: спавн вражеской атаки на свою базу (тест обороны, без вреда реальной базе)
+function startDefenseTest(n){
+  if(visit)return;
+  const eb=[];
+  for(const b of S.buildings){if(!b.built)continue;const o=mkEnemy(eb,b.type,b.gx,b.gy,b.level);if(o&&b.flip)o.flip=1;}
+  if(!eb.length||!eb.find(function(b){return b.type==="hq";})){toast("Нужны построенные здания");return;}
+  const deco=(S.obstacles||[]).filter(function(o){return !(o.beach||OB[o.type].beach);}).map(function(o){return{ob:true,type:o.type,gx:o.gx,gy:o.gy,flip:o.flip?1:0,deco:1};});
+  war={enemy:eb,deco:deco,units:[],shots:[],blasts:[],over:false,wallVer:0,test:true,start:eb.length,lvl:S.hqLevel,
+    reserve:{},heroAvail:false,heroUsed:false,lootedIce:0,lootedStone:0,lootedGem:0,trophyWin:0,styleName:"Тест обороны",oppName:"Атака на базу"};
+  n=Math.max(1,Math.min(300,Math.floor(n)||0));
+  for(let i=0;i<n;i++){const e=Math.floor(Math.random()*4),t=0.5+Math.random()*(GRID-1);let gx,gy;
+    if(e===0){gx=t;gy=0.5;}else if(e===1){gx=t;gy=GRID-0.5;}else if(e===2){gx=0.5;gy=t;}else{gx=GRID-0.5;gy=t;}
+    const tank=Math.random()<0.3;
+    war.units.push({type:"raider",def:{color:tank?"#c83c3c":"#ff7b6b"},gx:gx,gy:gy,
+      hp:tank?2200:700,maxhp:tank?2200:700,dmg:tank?70:45,speed:tank?0.6:1.0,
+      ranged:0,air:0,prefDef:0,ignoreWall:0,target:null,atkcd:0,_atk:0});}
+  mode="war";sel=null;buildSel=null;moving=null;
+  if(typeof adminPanel!=="undefined")adminPanel.classList.remove("show");
+  closeCatalog();document.getElementById("catOpen").style.display="none";
+  document.getElementById("mWar").classList.add("on");document.getElementById("mBuild").classList.remove("on");
+  refreshTop();renderSide();updHelp();toast("⚔ Атака на базу: "+n+" врагов! (Отступить — завершить)");
+}
 // мгновенно отстроить полную базу на максимальном уровне
 function buildAllMax(){
+  // убираем декор с травы (камни/пальмы/кусты), чтобы не мешал стройке; пляжный оставляем
+  if(S.obstacles)S.obstacles=S.obstacles.filter(o=>o.beach||OB[o.type].beach);
   // занятость клеток
   const occ=Array.from({length:GRID},()=>new Uint8Array(GRID));
   const mark=(gx,gy,s)=>{for(let y=gy;y<gy+s;y++)for(let x=gx;x<gx+s;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)occ[y][x]=1;};
   for(const b of S.buildings)mark(b.gx,b.gy,BT[b.type].size);
-  if(S.obstacles)for(const o of S.obstacles)mark(o.gx,o.gy,OB[o.type].size);  // не строить на препятствиях
+  if(S.obstacles)for(const o of S.obstacles)mark(o.gx,o.gy,OB[o.type].size);  // оставшиеся (пляжные) — не трогаем
   const findSpot=s=>{for(let gy=0;gy+s<=GRID;gy++)for(let gx=0;gx+s<=GRID;gx++){let free=true;
     for(let y=gy;y<gy+s&&free;y++)for(let x=gx;x<gx+s;x++)if(occ[y][x]){free=false;break;}
     if(free)return[gx,gy];}return null;};
@@ -2105,6 +2137,7 @@ function buildAllMax(){
   save();refreshTop();renderSide();toast("База отстроена: +"+added+" зданий, всё на максимуме");
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
+document.getElementById("apAttack").onclick=()=>{const n=+document.getElementById("apEnemyN").value||20;startDefenseTest(n);};
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){
   const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList"),ql=document.getElementById("questList");
