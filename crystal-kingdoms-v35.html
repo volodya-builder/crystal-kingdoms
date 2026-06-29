@@ -1139,25 +1139,31 @@ function drawBar(cx,topY,w,p,fg,bg){p=Math.max(0,Math.min(1,p));ctx.fillStyle=bg
 
 /* ===== ВОЙСКА (бой) ===== */
 /* ===== РЫЦАРЬ (Brute) — спрайт с анимацией ===== */
-let knightSpr=null;
-(function(){const im=new Image();
-  im.onload=function(){try{knightSpr=keyOutWhite(im);}catch(e){knightSpr=im;}
-    try{if(knightSpr&&knightSpr.toDataURL&&typeof ICN!=="undefined")ICN.brute=knightSpr.toDataURL();}catch(e){}};
-  im.onerror=function(){};im.src="assets/knight.png";})();
-function drawKnight(u,cx,cy0,r){
-  const spr=knightSpr,iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
-  const H=r*4.4,W=H*(iw/ih);
-  if(u._ph===undefined)u._ph=(u.gx+u.gy)*1.3;       // фаза шага
+// ── Спрайты юнитов: ОДИН png на тип, анимируется кодом (шаг, наклон, выпад, разворот, парение) ──
+// положи в assets/: knight.png (Brute), striker.png, marine.png, blaze.png, skyfire.png, hero.png
+const UNIT_SPR_FILES={brute:"assets/knight.png",striker:"assets/striker.png",marine:"assets/marine.png",blaze:"assets/blaze.png",skyfire:"assets/skyfire.png",hero:"assets/hero.png"};
+const UNIT_SPR_H={brute:4.4,striker:3.8,marine:3.7,blaze:3.9,skyfire:3.6,hero:4.8}; // высота спрайта в радиусах r
+const unitSpr={};
+for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};unitSpr[k]=rec;const im=new Image();
+  im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
+    try{if(rec.img&&rec.img.toDataURL&&typeof ICN!=="undefined")ICN[k]=rec.img.toDataURL();}catch(e){}};
+  im.onerror=function(){};im.src=UNIT_SPR_FILES[k];})(k);}
+let knightSpr=null; // совместимость
+function drawUnitSprite(u,cx,baseY,r,spr,hMul){
+  const iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
+  const H=r*(hMul||4.0),W=H*(iw/ih);
+  if(u._ph===undefined)u._ph=(u.gx+u.gy)*1.3;       // фаза шага (у каждого свой сдвиг)
   // разворот в сторону цели (по экранной оси X)
   let face=u._face||1;
   if(u.target){const s=BT[u.target.type].size,sdx=((u.target.gx+s/2)-u.gx)-((u.target.gy+s/2)-u.gy);
     if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
-  const walking=u.moving&&!(u._atk>0);
-  const bob=walking?Math.abs(Math.sin(ANIM*9+u._ph))*2.4*ZOOM:Math.sin(ANIM*2+u._ph)*0.9*ZOOM; // шаг / дыхание
-  const tilt=walking?Math.sin(ANIM*9+u._ph)*0.05:0;
-  const lunge=u._atk>0?Math.sin(u._atk*Math.PI)*6*ZOOM*face:0;                                  // выпад при ударе
+  const flying=!!u.air,walking=u.moving&&!(u._atk>0);
+  const bob=flying?Math.sin(ANIM*3+u._ph)*2.2*ZOOM                                  // авиация — парение
+    :(walking?Math.abs(Math.sin(ANIM*9+u._ph))*2.4*ZOOM:Math.sin(ANIM*2+u._ph)*0.9*ZOOM); // шаг / дыхание
+  const tilt=(walking&&!flying)?Math.sin(ANIM*9+u._ph)*0.05:0;
+  const lunge=u._atk>0?Math.sin(u._atk*Math.PI)*6*ZOOM*face:0;                       // выпад при ударе
   ctx.save();
-  ctx.translate(cx+lunge,cy0-bob);
+  ctx.translate(cx+lunge,baseY-bob);
   ctx.scale(face,1);ctx.rotate(tilt);
   ctx.drawImage(spr,-W/2,-H,W,H);
   ctx.restore();
@@ -1165,9 +1171,11 @@ function drawKnight(u,cx,cy0,r){
 function drawUnit(u){
   const fly=u.air?14*ZOOM:0;const[cx,cy0]=iso(u.gx,u.gy),cy=cy0-fly,r=8*ZOOM;
   ctx.fillStyle="rgba(4,10,22,.35)";ctx.beginPath();ctx.ellipse(cx,cy0,r*1.1,r*0.5,0,0,7);ctx.fill();
-  if(u.type==="brute"&&knightSpr){drawKnight(u,cx,cy0,r);
-    if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,cy0-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
-    if(u.hp<u.maxhp)drawBar(cx,cy0-r*4.6,r*2.4,u.hp/u.maxhp,"#5ce0a8","#3a1d1d");return;}
+  const _usp=unitSpr[u.type];
+  if(_usp&&_usp.ready&&_usp.img){const ty=cy0-fly;drawUnitSprite(u,cx,ty,r,_usp.img,UNIT_SPR_H[u.type]||4.0);
+    if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
+    if(u.hero){ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.moveTo(cx-3*ZOOM,ty-r*4.9);ctx.lineTo(cx,ty-r*5.5);ctx.lineTo(cx+3*ZOOM,ty-r*4.9);ctx.closePath();ctx.fill();}
+    if(u.hp<u.maxhp)drawBar(cx,ty-r*4.6,r*2.4,u.hp/u.maxhp,u.hero?"#caa9ff":"#5ce0a8","#3a1d1d");return;}
   const def=u.def;
   if(u.air){ctx.fillStyle=def.color;ctx.beginPath();ctx.moveTo(cx-r*1.4,cy);ctx.lineTo(cx+r*1.4,cy);ctx.lineTo(cx,cy-r*0.9);ctx.closePath();ctx.fill();
     ctx.fillRect(cx-r*0.4,cy-r*0.3,r*0.8,r*1.1);}
