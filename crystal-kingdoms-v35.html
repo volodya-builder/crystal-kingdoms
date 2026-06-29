@@ -1226,7 +1226,7 @@ function render(){
       if(hb)drawFootprintHi(hb.gx,hb.gy,BT[hb.type].size);            // клетки здания
       else if(ho){const bch=ho.beach||OB[ho.type].beach;             // пляжный декор не подсвечиваем,
         if(!bch||ho.type==="lighthouse"||ho.type==="dock")drawFootprintHi(ho.gx,ho.gy,OB[ho.type].size);} // но камни/пальмы/маяк/причал — все клетки
-      else{const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
+      else if(!siegeArm){const gx=Math.floor(hoverTile[0]),gy=Math.floor(hoverTile[1]);if(inBounds(gx,gy,1))drawHoverCell(gx,gy);}}
     const szOf=o=>o.ob?OB[o.type].size:BT[o.type].size;
     const list=[...S.buildings,...(S.obstacles||[])].sort((a,b)=>(a.gx+a.gy+szOf(a))-(b.gx+b.gy+szOf(b)));
     setWalls(S.buildings);
@@ -1234,7 +1234,7 @@ function render(){
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     drawSiege(); // живая осада поверх базы
-    // подсветку клетки при высадке по тапу убрали — мешала; просто тапай по карте
+    if(siegeArm&&hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID)drawDeployMarker(hoverTile[0],hoverTile[1],false); // кружок-ориентир места высадки (без квадрата клетки)
   }else{
     setWalls(war.enemy);
     if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
