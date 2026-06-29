@@ -341,7 +341,8 @@
             <option value="skyfire">Skyfire (воздух)</option>
           </select></label>
         <label>Сколько <input id="apEnemyN" type="number" value="20"></label>
-        <button class="btn up" id="apAttack" style="margin-top:4px">⚔ Спавн атаки на базу</button>
+        <button class="btn up" id="apAttack" style="margin-top:4px">⚔ Спавн по краям (N)</button>
+        <button class="btn up" id="apAttackTap" style="margin-top:4px">🎯 Высадка по тапу</button>
         <button class="btn ghost" id="apClearAtk" style="margin-top:6px">✖ Убрать атаку</button>
         <button class="btn ghost" id="apReset" style="margin-top:7px">Сбросить игру</button>
         <button class="btn ghost" id="apClose" style="margin-top:7px">Закрыть</button>
@@ -1179,6 +1180,7 @@ function drawUnit(u){
 /* ===== РЕНДЕР ===== */
 let mode="build",mouseTile=null,hoverTile=null,hoverPx=null,sel=null,moving=null,war=null,buildSel=null,ANIM=0,scout=null,hoverObj=null,pvpList=null;
 let siege={units:[],shots:[],blasts:[],hp0:null,_ver:0}; // живая осада своей базы (админ-тест, не разрушает)
+let siegeArm=null; // выбранный тип для ручной высадки врагов по тапу
 /* ===== ЗВУК + ЧАСТИЦЫ + ТРЯСКА (сочность) ===== */
 let AC=null,sndOn=(typeof localStorage!=="undefined"&&localStorage.getItem("ck_snd")!=="0");
 function actx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
@@ -1232,6 +1234,7 @@ function render(){
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     drawSiege(); // живая осада поверх базы
+    if(siegeArm&&hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID)drawDeployMarker(hoverTile[0],hoverTile[1],false); // точка высадки врага
   }else{
     setWalls(war.enemy);
     if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
@@ -1790,6 +1793,7 @@ function zoomAt(sx,sy,factor){const before=unIso(sx,sy);ZOOM=Math.max(ZMIN,Math.
   const[bx,by]=iso(before[0],before[1]);panX+=sx-bx;panY+=sy-by;recalcCam();}
 function handleTap(sx,sy){if(visit)return;const t=unIso(sx,sy);   // в гостях — только смотреть
   if(mode==="war"){if(!(war&&war.test))deployAt(t[0],t[1]);return;}
+  if(siegeArm){spawnSiegeAt(siegeArm,t[0],t[1]);return;} // ручная высадка врагов по тапу
   if(moving){const s=BT[moving.type].size,gx=Math.floor(t[0]-s/2),gy=Math.floor(t[1]-s/2);
     if(areaFree(gx,gy,s,moving)){moving.gx=gx;moving.gy=gy;moving=null;save();renderSide();toast("Перемещено");}else toast("Сюда нельзя");return;}
   if(buildSel){
@@ -2107,24 +2111,34 @@ apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();rende
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
 /* ===== ЖИВАЯ ОСАДА своей базы (админ): враги атакуют, оборона стреляет, ты свободно строишь ===== */
-function spawnSiege(type,n){
+function siegeSnapshot(){if(!siege.hp0)siege.hp0=S.buildings.map(b=>({b:b,hp:b.hp,maxhp:b.maxhp}));}
+function mkRaider(type,gx,gy){let u;
+  if(UT[type]){const d=UT[type];u={type:type,def:d,gx:gx,gy:gy,hp:d.hp,maxhp:d.hp,dmg:d.dmg,speed:d.speed,ranged:d.ranged||0,air:d.air?1:0,prefDef:d.prefDef?1:0,ignoreWall:d.ignoreWall?1:0,target:null,atkcd:0,_atk:0};}
+  else u={type:"raider",def:{color:"#ff7b6b"},gx:gx,gy:gy,hp:800,maxhp:800,dmg:55,speed:0.95,ranged:0,air:0,prefDef:0,ignoreWall:0,target:null,atkcd:0,_atk:0};
+  siege.units.push(u);siege._ver++;return u;}
+function spawnSiege(type,n){ // быстрый спавн по краям
   if(visit||mode==="war"){toast("Доступно на базе");return;}
   if(!S.buildings.some(b=>b.built)){toast("Сначала построй здания");return;}
-  if(!siege.hp0)siege.hp0=S.buildings.map(b=>({b:b,hp:b.hp,maxhp:b.maxhp})); // снимок HP — восстановим после
-  n=Math.max(1,Math.min(300,Math.floor(n)||0));
+  siegeSnapshot();n=Math.max(1,Math.min(300,Math.floor(n)||0));
   for(let i=0;i<n;i++){const e=Math.floor(Math.random()*4),t=0.5+Math.random()*(GRID-1);let gx,gy;
     if(e===0){gx=t;gy=0.5;}else if(e===1){gx=t;gy=GRID-0.5;}else if(e===2){gx=0.5;gy=t;}else{gx=GRID-0.5;gy=t;}
-    let u;
-    if(UT[type]){const d=UT[type];u={type:type,def:d,gx:gx,gy:gy,hp:d.hp,maxhp:d.hp,dmg:d.dmg,speed:d.speed,ranged:d.ranged||0,air:d.air?1:0,prefDef:d.prefDef?1:0,ignoreWall:d.ignoreWall?1:0,target:null,atkcd:0,_atk:0};}
-    else u={type:"raider",def:{color:"#ff7b6b"},gx:gx,gy:gy,hp:800,maxhp:800,dmg:55,speed:0.95,ranged:0,air:0,prefDef:0,ignoreWall:0,target:null,atkcd:0,_atk:0};
-    siege.units.push(u);}
-  siege._ver++;
+    mkRaider(type,gx,gy);}
   if(typeof adminPanel!=="undefined")adminPanel.classList.remove("show");
-  toast("⚔ "+n+" × "+(UT[type]?UT[type].name:"Враг")+" атакуют базу! (строй спокойно)");
+  toast("⚔ "+n+" × "+(UT[type]?UT[type].name:"Враг")+" атакуют базу!");
 }
+function siegeArmManual(type){ // высадка по тапу
+  if(visit||mode==="war"){toast("Доступно на базе");return;}
+  if(!S.buildings.some(b=>b.built)){toast("Сначала построй здания");return;}
+  siegeSnapshot();siegeArm=type;
+  if(typeof adminPanel!=="undefined")adminPanel.classList.remove("show");
+  toast("🎯 Тапай по карте — высаживай «"+(UT[type]?UT[type].name:"Враг")+"». Esc — стоп.");
+}
+function spawnSiegeAt(type,gx,gy){siegeSnapshot();
+  const px=Math.max(0.3,Math.min(GRID-0.3,gx)),py=Math.max(0.3,Math.min(GRID-0.3,gy));
+  mkRaider(type,px,py);if(typeof SND!=="undefined")SND.place();}
 function endSiege(){if(!siege.units.length&&!siege.hp0)return;
   for(const b of S.buildings){b.hp=b.maxhp;b._cd=0;} // полностью восстановить базу
-  siege.units=[];siege.shots=[];siege.blasts=[];siege.hp0=null;
+  siege.units=[];siege.shots=[];siege.blasts=[];siege.hp0=null;siegeArm=null;
   save(); toast("🛡 Атака убрана — база восстановлена");}
 function siegeGrid(){const g=Array.from({length:GRID},()=>new Uint8Array(GRID));
   for(const b of S.buildings){if(!b.built||b.type!=="wall"||b.hp<=0)continue;for(let y=b.gy;y<b.gy+1;y++)for(let x=b.gx;x<b.gx+1;x++)if(x>=0&&y>=0&&x<GRID&&y<GRID)g[y][x]=1;}return g;}
@@ -2197,9 +2211,11 @@ function buildAllMax(){
 }
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
 document.getElementById("apAttack").onclick=()=>{const n=+document.getElementById("apEnemyN").value||20,ty=document.getElementById("apEnemyType").value;spawnSiege(ty,n);};
+document.getElementById("apAttackTap").onclick=()=>{siegeArmManual(document.getElementById("apEnemyType").value);};
 document.getElementById("apClearAtk").onclick=()=>endSiege();
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){
+  if(siegeArm){siegeArm=null;toast("🎯 Высадка выключена");return;}
   const ob=document.getElementById("obDialog"),vl=document.getElementById("visitList"),ql=document.getElementById("questList");
   if(ob&&ob.classList.contains("show")){closeObDialog();return;}
   if(ql&&ql.classList.contains("show")){ql.classList.remove("show");return;}
