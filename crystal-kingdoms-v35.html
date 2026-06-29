@@ -1410,8 +1410,8 @@ function baseFromSnapshot(snap){
         lootGem=Math.max(0,Math.round((lvl-1)*0.6+(Math.random()<0.4?1:0)));
   const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore"),se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
   distribute(ie.length?ie:eb,"ice",lootIce);distribute(se.length?se:eb,"stone",lootStone);hq.gem=lootGem;
-  // декорации игрока (с травы, без пляжных) — визуальные
-  const deco=[];for(const o of (dat.o||[])){if(o.bc||!OB[o.t]||OB[o.t].beach)continue;deco.push({ob:true,type:o.t,gx:o.x,gy:o.y,flip:o.f?1:0,deco:1});}
+  // декорации игрока (трава + пляж: маяк/сундук/ракушки и т.д.) — визуальные
+  const deco=[];for(const o of (dat.o||[])){if(!OB[o.t])continue;deco.push({ob:true,type:o.t,gx:o.x,gy:o.y,flip:o.f?1:0,beach:o.bc?1:0,deco:1});}
   return{list:eb,deco,lvl,loot:{ice:lootIce,stone:lootStone,gem:lootGem},styleKey:"pvp",styleName:"Игрок",desc:"",
     trophyWin:Math.round(18+lvl*5),name:(snap.name||"Игрок"),pvp:true,oppId:snap.id};
 }
@@ -1462,26 +1462,37 @@ function genEnemyBase(styleKey){
     putNear(inter[i],blv(),cx+Math.cos(a)*rDef-1,cy+Math.sin(a)*rDef-1);}
   for(let i=0;i<mortarN;i++){const a=Math.PI/4+i*(Math.PI/2);
     putNear("mortar",blv(),cx+Math.cos(a)*4.2-1,cy+Math.sin(a)*4.2-1);}
-  // 4) СТЕНЫ — замкнутый периметр вокруг всей базы (фортресс — ещё внутреннее кольцо у штаба)
+  // 4) СТЕНЫ — СПЛОШНОЙ замкнутый периметр на 1 клетку снаружи базы (фортресс — ещё внутреннее кольцо у штаба)
   let minx=99,miny=99,maxx=-1,maxy=-1;
   for(const b of eb){const s=BT[b.type].size;minx=Math.min(minx,b.gx);miny=Math.min(miny,b.gy);maxx=Math.max(maxx,b.gx+s-1);maxy=Math.max(maxy,b.gy+s-1);}
   const wlv=Math.max(1,Math.min(MAXLV,lvl<=1?1:lvl-1));
   const x0=minx-1,y0=miny-1,x1=maxx+1,y1=maxy+1,perim=[];
   for(let x=x0;x<=x1;x++){perim.push([x,y0]);perim.push([x,y1]);}
   for(let y=y0+1;y<y1;y++){perim.push([x0,y]);perim.push([x1,y]);}
-  const gappy=st.wall<0.9;   // «Ферма» — со слабыми местами (дыры в заборе), остальные базы закрыты полностью
-  for(let i=0;i<perim.length;i++){if(gappy&&i%3===0)continue; // оставляем проходы у фермы
-    put("wall",wlv,perim[i][0],perim[i][1]);}
-  if(st.wall>=1.5){const hx=cx-2,hy=cy-2,hx2=cx+1,hy2=cy+1;   // фортовое внутреннее кольцо у штаба
+  const gates=(st.wall<0.9)?[Math.floor(perim.length*0.25),Math.floor(perim.length*0.72)]:[]; // у «Фермы» — пара ворот, остальные закрыты полностью
+  for(let i=0;i<perim.length;i++){let gate=false;for(const g of gates)if(i>=g&&i<g+2)gate=true;
+    if(!gate)put("wall",wlv,perim[i][0],perim[i][1]);}
+  if(st.wall>=1.3){const hx=cx-2,hy=cy-2,hx2=cx+1,hy2=cy+1;   // внутреннее кольцо у штаба (крепость)
     for(let x=hx;x<=hx2;x++){put("wall",wlv,x,hy);put("wall",wlv,x,hy2);}
     for(let y=hy+1;y<hy2;y++){put("wall",wlv,hx,y);put("wall",wlv,hx2,y);}}
-  // ДЕКОРАЦИИ — визуальные (камни/пальмы/кусты по всему острову, как у игрока; не блокируют, без добычи)
+  // ДЕКОРАЦИИ — визуальные (не блокируют, без добычи). Камни/пальмы/кусты — ТОЛЬКО ЗА периметром стен; пляжный декор — на песке
   const deco=[],dTypes=[["rock1",1],["rock1",1],["palm",1],["bush",1],["bush",1],["rock",2]];
-  const decoFree=(gx,gy,s)=>{if(!occ(gx,gy,s))return false;for(const o of deco){const os=OB[o.type].size;if(gx<o.gx+os&&gx+s>o.gx&&gy<o.gy+os&&gy+s>o.gy)return false;}return true;};
-  const wantD=18+Math.floor(Math.random()*10);
-  for(let tries=0,placed=0;placed<wantD&&tries<500;tries++){const dt=dTypes[Math.floor(Math.random()*dTypes.length)],t=dt[0],sz=dt[1];
+  const outsideBase=(gx,gy,s)=>(gx>x1+1||gx+s-1<x0-1||gy>y1+1||gy+s-1<y0-1); // не залезает в зону базы (с буфером)
+  const decoFree=(gx,gy,s)=>{if(!occ(gx,gy,s)||!outsideBase(gx,gy,s))return false;for(const o of deco){const os=OB[o.type].size;if(gx<o.gx+os&&gx+s>o.gx&&gy<o.gy+os&&gy+s>o.gy)return false;}return true;};
+  const wantD=16+Math.floor(Math.random()*8);
+  for(let tries=0,placed=0;placed<wantD&&tries<600;tries++){const dt=dTypes[Math.floor(Math.random()*dTypes.length)],t=dt[0],sz=dt[1];
     const gx=3+Math.floor(Math.random()*(GRID-6)),gy=3+Math.floor(Math.random()*(GRID-6));
     if(decoFree(gx,gy,sz)){deco.push({ob:true,type:t,gx,gy,deco:1});placed++;}}
+  // ПЛЯЖНЫЙ декор на песке/в воде (как на острове игрока): сундук/ракушки/якорь/зонт + причал+лодка+маяк
+  const M=BEACH_M,sand=["chest","shells","anchor","umbrella"];
+  const bfree=(gx,gy,sz)=>{for(const o of deco){if(!o.beach)continue;const os=OB[o.type].size;if(gx<o.gx+os+1&&gx+sz+1>o.gx&&gy<o.gy+os+1&&gy+sz+1>o.gy)return false;}return true;};
+  for(const t of sand){const sz=OB[t].size;for(let k=0;k<40;k++){const gx=Math.round(-M+0.5+Math.random()*(GRID+2*M-2)),gy=Math.round(-M+0.5+Math.random()*(GRID+2*M-2));
+    if(gx+sz>0&&gx<GRID&&gy+sz>0&&gy<GRID)continue; if(gx<-M||gy<-M||gx+sz>GRID+M||gy+sz>GRID+M)continue;
+    if(bfree(gx,gy,sz)){deco.push({ob:true,beach:true,type:t,gx,gy,deco:1});break;}}}
+  const Dx=Math.round(GRID*0.55);
+  deco.push({ob:true,beach:true,type:"dock",gx:Dx,gy:Math.round(GRID+M-0.4),deco:1});
+  deco.push({ob:true,beach:true,type:"boat",gx:Dx-4,gy:GRID+1,flip:true,deco:1});
+  deco.push({ob:true,beach:true,type:"lighthouse",gx:Math.round(-M-0.6),gy:Math.round(GRID*0.42),deco:1});
   const lootIce=Math.round((450*lvl+Math.random()*300*lvl)*st.loot),lootStone=Math.round((260*lvl+Math.random()*180*lvl)*st.loot),lootGem=Math.max(0,Math.round((lvl-1+(Math.random()<0.5?1:0))*st.loot));
   const ie=eb.filter(b=>b.type==="icemine"||b.type==="icestore");
   const se=eb.filter(b=>b.type==="stonepump"||b.type==="stonestore");
