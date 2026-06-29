@@ -986,18 +986,19 @@ const cannonBase={img:null,ready:false}, cannonTurret={img:null,ready:false};
   const t=new Image();t.onload=function(){try{cannonTurret.img=keyOutWhite(t);}catch(e){cannonTurret.img=t;}cannonTurret.ready=true;};t.onerror=function(){cannonTurret.ready=false;};t.src="assets/cannon_turret.png?v=1";
 })();
 const RECOIL_T=0.16;             // длительность отдачи, сек
-const CTUR={scale:0.86,          // ширина башни относительно футпринта базы
-  ax:0.0, ay:0.50,               // экранная точка опоры (центр кольца): x=cen+ax*W, y=bottomY-ay*H
-  px:0.52, py:0.70,              // точка опоры ВНУТРИ картинки башни (доли ширины/высоты)
+const CTUR={scale:0.70,          // ширина башни относительно футпринта базы
+  ax:0.0, ay:0.66,               // экранная точка опоры (центр кольца): x=cen+ax*W, y=bottomY-ay*H
+  px:0.52, py:0.80,              // точка опоры ВНУТРИ картинки башни (доли ширины/высоты)
   rx:0.12, ry:-0.05,             // вектор отдачи (назад = вправо-вверх), доли ширины/высоты башни
+  sway:0.05, swaySpd:0.7,        // горизонтальный «поворот-скан» в покое (доли ширины)
   mzx:0.10, mzy:0.55};           // позиция дула в картинке башни (для вспышки), доли
 function drawCannonTurret(b,cen,W,H,bottomY){
   if(!cannonTurret.ready||!cannonTurret.img)return;
   const im=cannonTurret.img,iw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height;
   const tw=W*CTUR.scale, th=tw*(ih/iw);
   const rk=(b._recoil||0)/RECOIL_T;                                  // 0..1 — сила отдачи
-  const idle=Math.sin(ANIM*1.4+(b.gx*0.7+b.gy*0.5))*0.8*ZOOM;        // лёгкое «дыхание» в покое
-  const ox=CTUR.rx*tw*rk, oy=CTUR.ry*th*rk+idle;
+  const scan=Math.sin(ANIM*CTUR.swaySpd+(b.gx*0.7+b.gy*0.5))*CTUR.sway; // медленный поворот вбок
+  const ox=CTUR.rx*tw*rk + scan*tw, oy=CTUR.ry*th*rk;                // отдача + скан, без вертикального дрожания
   const ringX=cen[0]+CTUR.ax*W, ringY=bottomY-CTUR.ay*H;
   const dx=ringX-CTUR.px*tw+ox, dy=ringY-CTUR.py*th+oy;
   ctx.drawImage(im,dx,dy,tw,th);
