@@ -193,10 +193,11 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
       <button class="btn btn-ghost" id="connectBtn2">Подключить кошелёк</button>
     </div>
     <div class="hero-stats">
+      <div class="s"><b id="stIslands">…</b><span>🏝 Островов</span></div>
+      <div class="s"><b id="stOnline">…</b><span>🟢 Онлайн сейчас</span></div>
       <div class="s"><b>14</b><span>Зданий</span></div>
       <div class="s"><b>6</b><span>Героев и юнитов</span></div>
       <div class="s"><b>$CRYSTAL</b><span>Игровой токен</span></div>
-      <div class="s"><b>0%</b><span>Pay-to-win</span></div>
     </div>
   </div>
 </section>
@@ -346,5 +347,24 @@ if(window.ethereum&&window.ethereum.request){window.ethereum.request({method:"et
   var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add("in");io.unobserve(x.target);}});},{threshold:.14});
   els.forEach(function(e){io.observe(e);});})();
 </script>
+<!-- ЖИВАЯ СТАТИСТИКА из Supabase: всего островов + онлайн (активные за 10 мин) -->
+<script>
+(function(){
+  var SB="https://wushnxfwmsgmummijzzy.supabase.co/rest/v1",
+      KEY="sb_publishable_jCwr5baNK3ttGMRh7JBmNg_LXCkom77",
+      H={apikey:KEY,Authorization:"Bearer "+KEY};
+  function count(url){ // читаем total из заголовка Content-Range "0-0/N"
+    return fetch(url,{headers:Object.assign({Prefer:"count=exact",Range:"0-0"},H)})
+      .then(function(r){var cr=r.headers.get("content-range")||"";var n=cr.split("/")[1];return n?parseInt(n,10):0;});
+  }
+  function set(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+  function load(){
+    count(SB+"/islands?select=id").then(function(n){set("stIslands",n.toLocaleString("ru-RU"));}).catch(function(){set("stIslands","—");});
+    var since=new Date(Date.now()-10*60*1000).toISOString();
+    count(SB+"/islands?select=id&updated_at=gte."+since).then(function(n){set("stOnline",n.toLocaleString("ru-RU"));}).catch(function(){set("stOnline","—");});
+  }
+  load(); setInterval(load,30000);
+})();
+</script>
 </body>
-</html>
+</html> 
