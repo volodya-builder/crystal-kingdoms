@@ -1234,7 +1234,7 @@ function render(){
     for(const it of list){if(it===moving)continue;if(it.ob)drawObstacle(it);else{drawBuilding(it);if(it===sel)drawSelect(it);}}
     if(moving&&ptr){const s=BT[moving.type].size,gx=Math.floor(ptr[0]-s/2),gy=Math.floor(ptr[1]-s/2),ok=areaFree(gx,gy,s,moving);drawGhost(gx,gy,s,ok);drawCellGrid(gx,gy,s,ok);}
     drawSiege(); // живая осада поверх базы
-    if(siegeArm&&hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID)drawDeployMarker(hoverTile[0],hoverTile[1],false); // точка высадки врага
+    // подсветку клетки при высадке по тапу убрали — мешала; просто тапай по карте
   }else{
     setWalls(war.enemy);
     if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
@@ -2182,7 +2182,7 @@ function updateSiege(dt){
   }
   siege.shots=siege.shots.filter(s=>(s.life-=dt)>0);
   siege.blasts=siege.blasts.filter(b=>(b.life-=dt*1.6)>0);
-  if(!siege.units.some(u=>u.hp>0))endSiege();
+  if(!siege.units.some(u=>u.hp>0)&&!siegeArm)endSiege(); // в режиме высадки по тапу не закрываемся — спавним дальше
 }
 function drawSiege(){ if(!siege.units.length)return;
   for(const u of siege.units)if(u.hp>0)drawUnit(u);
