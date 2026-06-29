@@ -2242,6 +2242,7 @@ function buildAllMax(){
 document.getElementById("apMaxAll").onclick=()=>{if(confirm("Построить все здания на макс. уровне?"))buildAllMax();};
 document.getElementById("apAttack").onclick=()=>{const n=+document.getElementById("apEnemyN").value||20,ty=document.getElementById("apEnemyType").value;spawnSiege(ty,n);};
 document.getElementById("apAttackTap").onclick=()=>{siegeArmManual(document.getElementById("apEnemyType").value);};
+document.getElementById("apEnemyType").onchange=function(){if(siegeArm){siegeArm=this.value;toast("🎯 Теперь высаживаешь «"+(UT[this.value]?UT[this.value].name:"Враг")+"»");}}; // смена типа на лету
 document.getElementById("apClearAtk").onclick=()=>endSiege();
 document.getElementById("apReset").onclick=()=>{if(confirm("Сбросить всю игру?")){localStorage.removeItem(SAVE_KEY);S=freshState();S.obstacles=genObstacles().concat(genBeachDecor());save();sel=null;buildSel=null;moving=null;syncAdminUI();refreshTop();renderSide();recalcCam();toast("Игра сброшена");}};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){
