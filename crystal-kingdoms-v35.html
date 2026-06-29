@@ -372,7 +372,7 @@ function buildLv(sp){const out=[null];
 const HQ_LIM={
  icemine:[1,2,2,3,3,4,4,5,5,6], stonepump:[1,1,2,2,3,3,4,4,5,5],
  icestore:[1,1,2,2,3,3,4,4,5,5], stonestore:[1,1,2,2,3,3,4,4,5,5],
- camp:[1,1,2,2,3,3,4,4,5,6], factory:[1,1,1,1,2,2,2,3,3,3], hangar:[0,0,0,1,1,1,2,2,2,3],
+ camp:[1,1,1,2,2,2,3,3,3,3], factory:[1,1,1,1,2,2,2,3,3,3], hangar:[0,0,0,1,1,1,2,2,2,3],
  lab:[0,0,1,1,2,2,3,3,4,4], altar:[0,0,0,1,1,1,1,1,1,1],
  flame:[1,2,3,4,5,6,7,8,9,10], aa:[0,1,1,2,2,3,3,4,4,5], mortar:[0,0,1,1,2,2,3,3,4,4],
  wall:[16,26,40,56,76,98,122,150,180,215]};
@@ -404,7 +404,7 @@ const BT={
 
  camp:{name:"Army Camp",size:2,role:"army",cls:"camp",hq:1,
    desc:"Вмещает армию. Сумма лагерей = размер армии.",
-   lv:buildLv({hp:[450,1.31],ice:[120,2.25],t:[8,1.5],capacity:[16,1.36]})},
+   lv:buildLv({hp:[450,1.31],ice:[120,2.25],t:[8,1.5],capacity:[60,1.16]})},
 
  factory:{name:"Infantry Factory",size:2,role:"build",make:"factory",cls:"factory",hq:1,
    desc:"Тренирует пехоту за Oil. Уровень открывает бойцов.",
@@ -443,22 +443,24 @@ const BUILD_GROUPS={
 
 // Войска (реальный состав Mavia). build: factory|hangar. unlock = уровень здания.
 // flag: air, prefDef (метит защиту), ignoreWall (Блейз — поверх стен), retaliate (огрызается).
+// Армия: МАЛО юнитов, но каждый КРАТНО сильнее (баланс под прокачанные здания).
+// space — место в лагерях (большое → юнитов помещается мало).
 const UT={
- striker:{name:"Striker",icon:"striker",build:"factory",unlock:1,hp:150,dmg:22,speed:0.95,space:1,
-   cost:26,t:5,retaliate:1,color:"#7fd6ff",desc:"Мили-молот. Ранний. Бьёт ближайшее, огрызается на врагов."},
- brute:{name:"Brute",icon:"brute",build:"factory",unlock:2,hp:520,dmg:24,speed:0.5,space:5,
-   cost:110,t:16,prefDef:1,color:"#5a86c8",desc:"Тяжёлый танк. Метит в защиту, держит огонь."},
- marine:{name:"Marine",icon:"marine",build:"factory",unlock:3,hp:110,dmg:20,speed:1.1,space:2,ranged:2.8,
-   cost:70,t:9,color:"#74e0c0",desc:"Дальник. Стреляет из-за спин танков."},
- blaze:{name:"Blaze",icon:"blaze",build:"factory",unlock:4,hp:130,dmg:34,speed:0.95,space:3,ranged:3.0,ignoreWall:1,
-   cost:130,t:14,color:"#ff9d5c",desc:"РПГ. Бьёт здания за стенами — стены игнорирует."},
- skyfire:{name:"Skyfire",icon:"skyfire",build:"hangar",unlock:1,hp:140,dmg:30,speed:1.25,space:4,ranged:3.2,air:1,
-   cost:160,t:16,color:"#9fe0ff",desc:"АВИАЦИЯ. Летит над всем, бьёт по земле и воздуху. Сбить может только Anti-Air."},
+ striker:{name:"Striker",icon:"striker",build:"factory",unlock:1,hp:820,dmg:115,speed:0.95,space:18,
+   cost:120,t:8,retaliate:1,color:"#7fd6ff",desc:"Мили-молот. Бьёт ближайшее, огрызается на врагов."},
+ brute:{name:"Brute",icon:"brute",build:"factory",unlock:2,hp:4400,dmg:150,speed:0.5,space:60,
+   cost:900,t:40,prefDef:1,color:"#5a86c8",desc:"Тяжёлый танк. Метит в защиту, держит огонь, пробивает стены."},
+ marine:{name:"Marine",icon:"marine",build:"factory",unlock:3,hp:520,dmg:135,speed:1.1,space:26,ranged:2.8,
+   cost:320,t:16,color:"#74e0c0",desc:"Дальник. Стреляет из-за спин танков."},
+ blaze:{name:"Blaze",icon:"blaze",build:"factory",unlock:4,hp:680,dmg:290,speed:0.95,space:34,ranged:3.0,ignoreWall:1,
+   cost:600,t:22,color:"#ff9d5c",desc:"РПГ. Огромный урон по зданиям — стены игнорирует."},
+ skyfire:{name:"Skyfire",icon:"skyfire",build:"hangar",unlock:1,hp:760,dmg:235,speed:1.25,space:40,ranged:3.2,air:1,
+   cost:700,t:22,color:"#9fe0ff",desc:"АВИАЦИЯ. Летит над всем, бьёт по земле и воздуху. Сбить может только Anti-Air."},
 };
 const TROOP_ORDER=["striker","brute","marine","blaze","skyfire"];
 
 // Герой Брутус (через Алтарь). Ставится раз; гибель → откат REVIVE сек.
-const HERO={name:"Brutus",icon:"brutus",hp:1200,dmg:40,speed:0.6,prefDef:1,color:"#caa9ff",
+const HERO={name:"Brutus",icon:"brutus",hp:8000,dmg:340,speed:0.6,prefDef:1,color:"#caa9ff",
   desc:"Герой-танк. Ставится раз за бой, после гибели недоступен время.",revive:90};
 
 /* ===== СОСТОЯНИЕ + СОХРАНЕНИЕ ===== */
