@@ -392,7 +392,7 @@ const HQ_LIM={
  icestore:[1,1,2,2,3,3,4,4,5,5], stonestore:[1,1,2,2,3,3,4,4,5,5],
  camp:[1,1,1,2,2,2,3,3,3,3], factory:[1,1,1,1,2,2,2,3,3,3], hangar:[0,0,0,1,1,1,2,2,2,3],
  lab:[0,0,1,1,2,2,3,3,4,4], altar:[0,0,0,1,1,1,1,1,1,1],
- flame:[1,2,3,4,5,6,7,8,9,10], aa:[0,1,1,2,2,3,3,4,4,5], mortar:[0,0,1,1,2,2,3,3,4,4],
+ cannon:[2,2,3,3,4,4,5,5,6,6], flame:[1,2,3,4,5,6,7,8,9,10], aa:[0,1,1,2,2,3,3,4,4,5], mortar:[0,0,1,1,2,2,3,3,4,4],
  wall:[16,26,40,56,76,98,122,150,180,215]};
 const HQ=[null];
 for(let i=1;i<=MAXLV;i++){const lim={};for(const k in HQ_LIM)lim[k]=HQ_LIM[k][i-1];
@@ -439,6 +439,9 @@ const BT={
    desc:"Призывает героя Brutus. В бою ставится раз; гибель — откат.",
    lv:buildLv({hp:[700,1.32],ice:[2500,2.05],t:[45,1.45],hero:1})},
 
+ cannon:{name:"Cannon",size:2,role:"def",target:"ground",cls:"cannon",hq:1,
+   desc:"Пушка по наземным. Одиночная цель, быстрая — база обороны.",
+   lv:buildLv({hp:[380,1.30],ice:[120,2.25],t:[7,1.5],dmg:[28,1.34],range:[4.5,0.1],cd:[0.6,0.98]})},
  flame:{name:"Flame Tower",size:2,role:"def",target:"ground",cls:"flame",hq:1,
    desc:"Бьёт по наземным войскам. Основа обороны.",
    lv:buildLv({hp:[420,1.31],ice:[140,2.25],t:[8,1.5],dmg:[20,1.34],range:[3.4,0.09],cd:[0.7,0.97]})},
@@ -456,7 +459,7 @@ const BT={
 const BUILD_GROUPS={
  eco:["icemine","stonepump","icestore","stonestore"],
  army:["camp","factory","hangar","lab","altar"],
- def:["flame","aa","mortar","wall"],
+ def:["cannon","flame","aa","mortar","wall"],
 };
 
 // Войска (реальный состав Mavia). build: factory|hangar. unlock = уровень здания.
@@ -702,7 +705,8 @@ const BCOL={hq:["#cdeaff","#3f7fc4","#1c4f8c"],icemine:["#ffe79a","#e0a83f","#9c
  factory:["#ffd89a","#c4863f","#74491c"],hangar:["#bcd0e0","#6f90b0","#3a5070"],
  lab:["#c8b0ff","#7d5cd0","#3f2a7a"],altar:["#d8b8ff","#9d6cff","#5a2a9a"],
  flame:["#ffb07a","#d06030","#7a3018"],aa:["#bcd0e0","#5f86b4","#2f4f7a"],
- mortar:["#c0c8d0","#7f8a98","#48525e"],wall:["#d6eaff","#5f86b4","#2f4f7a"]};
+ mortar:["#c0c8d0","#7f8a98","#48525e"],wall:["#d6eaff","#5f86b4","#2f4f7a"],
+ cannon:["#bcd0e8","#3f63b8","#23306a"]};
 
 function drawBuildingMini(g,type){const c=BCOL[type]||BCOL.hq;
   if(type==="wall"){isoBox(g,24,30,26,12,c[0],c[1],c[2]);return;}
@@ -901,7 +905,7 @@ const SPRITE_FILES={
   hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png?v=3",
   icestore:"assets/icestore.png", stonestore:"assets/stonestore.png", camp:"assets/camp.png",
   factory:"assets/factory.png", hangar:"assets/hangar.png", lab:"assets/lab.png", altar:"assets/altar.png",
-  flame:"assets/flame.png", aa:"assets/aa.png", mortar:"assets/mortar.png", wall:"assets/wall.png"
+  flame:"assets/flame.png", aa:"assets/aa.png", mortar:"assets/mortar.png", wall:"assets/wall.png", cannon:"assets/cannon.png"
 };
 // после автокропа картинка = само здание; base=1.0 ставит низ ровно на тень.
 // общий коэффициент подгонки: <1 ужимает здания внутрь их клеток (один регулятор на все)
@@ -911,7 +915,7 @@ const SPRITE_FILE_CFG={
   hq:{scale:1.0,base:1.0,dy:0}, icemine:{scale:1.0,base:1.0,dy:0}, stonepump:{scale:1.0,base:1.0,dy:0},
   icestore:{scale:1.0,base:1.0,dy:0}, stonestore:{scale:1.0,base:1.0,dy:0}, camp:{scale:1.0,base:1.0,dy:0},
   factory:{scale:1.0,base:1.0,dy:0}, hangar:{scale:1.0,base:1.0,dy:0}, lab:{scale:1.0,base:1.0,dy:0}, altar:{scale:1.0,base:1.0,dy:0},
-  flame:{scale:1.0,base:1.0,dy:0}, aa:{scale:1.0,base:1.0,dy:0}, mortar:{scale:1.0,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}
+  flame:{scale:1.0,base:1.0,dy:0}, aa:{scale:1.0,base:1.0,dy:0}, mortar:{scale:1.0,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}, cannon:{scale:1.0,base:1.0,dy:0}
 };
 // вырезаем белый фон PNG в прозрачность (flood-fill от краёв), чтобы не было белых квадратов
 function keyOutWhite(im){
@@ -1499,6 +1503,9 @@ function genEnemyBase(styleKey){
     putNear(inter[i],blv(),cx+Math.cos(a)*rDef-1,cy+Math.sin(a)*rDef-1);}
   for(let i=0;i<mortarN;i++){const a=Math.PI/4+i*(Math.PI/2);
     putNear("mortar",blv(),cx+Math.cos(a)*4.2-1,cy+Math.sin(a)*4.2-1);}
+  const cannonN=clamp(Math.round((1+lvl*0.7)*st.def),1,8);   // пушки — основная наземная оборона
+  for(let i=0;i<cannonN;i++){const a=(i/cannonN)*2*Math.PI+1.1;
+    putNear("cannon",blv(),cx+Math.cos(a)*(rDef-0.7)-1,cy+Math.sin(a)*(rDef-0.7)-1);}
   // 4) СТЕНЫ — СПЛОШНОЙ замкнутый периметр на 1 клетку снаружи базы (фортресс — ещё внутреннее кольцо у штаба)
   let minx=99,miny=99,maxx=-1,maxy=-1;
   for(const b of eb){const s=BT[b.type].size;minx=Math.min(minx,b.gx);miny=Math.min(miny,b.gy);maxx=Math.max(maxx,b.gx+s-1);maxy=Math.max(maxy,b.gy+s-1);}

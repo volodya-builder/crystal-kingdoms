@@ -23,9 +23,12 @@ const DECIMALS = 9;
 const SUPPLY = 100_000_000;          // максимальная эмиссия
 const FAUCET = 5000;                 // сколько начислить указанному кошельку для теста
 
-(async () => {
-  const conn = new Connection(clusterApiUrl("devnet"), "confirmed");
+const RPCS = [
+  process.env.RPC_URL,
+  "https://api.devnet.solana.com",
+].filter(Boolean);
 
+(async () => {
   // --- казна (mint authority + хранилище эмиссии) ---
   const tPath = path.join(__dirname, "treasury.json");
   let treasury;
@@ -38,17 +41,32 @@ const FAUCET = 5000;                 // сколько начислить ука
     console.log("Создана новая казна:", treasury.publicKey.toBase58(), "(секрет → treasury.json)");
   }
 
-  // --- девнет-аирдроп SOL казне (на комиссии) ---
-  const bal = await conn.getBalance(treasury.publicKey);
-  if (bal < 1 * LAMPORTS_PER_SOL) {
-    console.log("Запрашиваю devnet-airdrop 2 SOL…");
+  // --- выбираем RPC, на котором у казны ВИДНЫ деньги (обходим перегруженные узлы) ---
+  let conn = null, bal = 0;
+  for (const url of RPCS) {
     try {
-      const sig = await conn.requestAirdrop(treasury.publicKey, 2 * LAMPORTS_PER_SOL);
-      await conn.confirmTransaction(sig, "confirmed");
-    } catch (e) {
-      console.log("⚠ Airdrop не прошёл (лимит девнета). Пополни вручную: https://faucet.solana.com (адрес казны выше).");
-    }
+      const c = new Connection(url, "confirmed");
+      const b = await c.getBalance(treasury.publicKey);
+      console.log("  RPC", url, "→ баланс казны:", (b / LAMPORTS_PER_SOL).toFixed(3), "SOL");
+      if (b > bal) { bal = b; conn = c; }
+    } catch (e) { console.log("  RPC", url, "недоступен:", e.message); }
   }
+  if (!conn) conn = new Connection(RPCS[0], "confirmed");  // если балансов нет — берём первый RPC (RPC_URL приоритетно)
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  for (let attempt = 1; attempt <= 4 && bal < 0.05 * LAMPORTS_PER_SOL; attempt++) {
+    try {
+      console.log("Airdrop попытка " + attempt + " (2 SOL через RPC)…");
+      await conn.requestAirdrop(treasury.publicKey, 2 * LAMPORTS_PER_SOL);
+      for (let i = 0; i < 20 && bal < 0.05 * LAMPORTS_PER_SOL; i++) { await sleep(2000); bal = await conn.getBalance(treasury.publicKey); }
+    } catch (e) { console.log("  airdrop не прошёл:", (e.message || e).slice(0, 80)); await sleep(3000); }
+  }
+  if (bal < 0.05 * LAMPORTS_PER_SOL) {
+    console.log("\n⚠ Не удалось получить SOL автоматически. Пополни казну вручную (любой способ) и запусти снова:");
+    console.log("   адрес казны:", treasury.publicKey.toBase58());
+    console.log("   фосеты: https://faucet.solana.com  |  https://faucet.quicknode.com/solana/devnet  (сеть Devnet)");
+    process.exit(0);
+  }
+  console.log("✓ Использую RPC с балансом казны", (bal / LAMPORTS_PER_SOL).toFixed(3), "SOL");
 
   // --- если токен уже создан (config.json) — переиспользуем ---
   const cPath = path.join(__dirname, "config.json");

@@ -33,7 +33,9 @@ const treasury = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSyn
 const MINT = new PublicKey(cfg.mint);
 const DEC = cfg.decimals;
 const UNIT = BigInt(10 ** DEC);
-const conn = new Connection(clusterApiUrl("devnet"), "confirmed");
+const RPC = process.env.RPC_URL || "https://api.devnet.solana.com";
+const conn = new Connection(RPC, "confirmed");
+console.log("RPC:", RPC);
 const usedSigs = new Set();   // защита от двойного зачёта депозита
 
 const app = express();
