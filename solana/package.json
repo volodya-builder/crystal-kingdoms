@@ -1,0 +1,18 @@
+{
+  "name": "crystal-kingdoms-solana",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Devnet $CRYSTAL token + bridge server for Crystal Kingdoms",
+  "scripts": {
+    "create": "node create-token.js",
+    "mint": "node create-token.js",
+    "server": "node bridge-server.js"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.95.3",
+    "@solana/spl-token": "^0.4.8",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}
