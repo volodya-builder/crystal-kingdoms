@@ -2096,7 +2096,7 @@ function buildAllMax(){
   // 1) все существующие здания (включая HQ) — в максимум
   for(const b of S.buildings){const maxL=b.type==="hq"?HQ_MAX:BT[b.type].lv.length-1;applyLevel(b,maxL);b.built=true;b.buildEnd=0;b._upTo=null;}
   // 2) доставить недостающие до лимита (HQ уже максимум → лимиты максимальные)
-  const order=["icemine","stonepump","icestore","stonestore","camp","factory","hangar","lab","altar","flame","aa","mortar","wall"];
+  const order=["icemine","stonepump","icestore","stonestore","camp","factory","hangar","lab","altar","cannon","flame","aa","mortar","wall"];
   let added=0;
   for(const type of order){const d=BT[type],maxL=d.lv.length-1,lim=limitFor(type);
     for(let have=countType(type);have<lim;have++){const sp=findSpot(d.size);if(!sp)break;
