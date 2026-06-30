@@ -921,7 +921,7 @@ const SPRITE_FILES={
   hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png?v=3",
   icestore:"assets/icestore.png", stonestore:"assets/stonestore.png", camp:"assets/camp.png",
   factory:"assets/factory.png", hangar:"assets/hangar.png", lab:"assets/lab.png", altar:"assets/altar.png",
-  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/cannon.png"
+  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/generated/cannon3d.png?v=1"
 };
 // после автокропа картинка = само здание; base=1.0 ставит низ ровно на тень.
 // общий коэффициент подгонки: <1 ужимает здания внутрь их клеток (один регулятор на все)
@@ -931,7 +931,7 @@ const SPRITE_FILE_CFG={
   hq:{scale:1.0,base:1.0,dy:0}, icemine:{scale:1.0,base:1.0,dy:0}, stonepump:{scale:1.0,base:1.0,dy:0},
   icestore:{scale:1.0,base:1.0,dy:0}, stonestore:{scale:1.0,base:1.0,dy:0}, camp:{scale:1.0,base:1.0,dy:0},
   factory:{scale:1.0,base:1.0,dy:0}, hangar:{scale:1.0,base:1.0,dy:0}, lab:{scale:1.0,base:1.0,dy:0}, altar:{scale:1.0,base:1.0,dy:0},
-  flame:{scale:0.8,base:1.0,dy:0}, aa:{scale:0.8,base:1.0,dy:0}, mortar:{scale:0.78,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}, cannon:{scale:0.8,base:1.0,dy:0}
+  flame:{scale:0.8,base:1.0,dy:0}, aa:{scale:0.8,base:1.0,dy:0}, mortar:{scale:0.78,base:1.0,dy:0}, wall:{scale:1.0,base:1.0,dy:0}, cannon:{scale:1.05,base:1.0,dy:0}
 };
 // вырезаем белый фон PNG в прозрачность (flood-fill от краёв), чтобы не было белых квадратов
 function keyOutWhite(im){
