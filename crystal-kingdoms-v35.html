@@ -999,7 +999,10 @@ function turretFrameFor(b,rig,cen){
     let f=Math.round((a*rig.dir+rig.angOffset)/(360/rig.frames));
     b._aimA=a; return ((f%rig.frames)+rig.frames)%rig.frames;
   }
-  return rig.restFrame||0;
+  // покой: медленный «обзор» — башня плавно водит стволом, чтобы было видно, что она живая (фаза зависит от позиции — башни не синхронны)
+  b._aimA=null;
+  let f=Math.round((rig.restFrame||0)+ANIM*1.3+(b.gx*2+b.gy));
+  return ((f%rig.frames)+rig.frames)%rig.frames;
 }
 let _wallSet=null; // клетки стен текущей сцены — для авто-ориентации сегментов забора
 function setWalls(arr){_wallSet=new Set();if(arr)for(const b of arr)if(b&&b.type==="wall"&&(b.hp===undefined||b.hp>0))_wallSet.add(b.gx+","+b.gy);}
