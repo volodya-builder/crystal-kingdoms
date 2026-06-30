@@ -921,7 +921,7 @@ const SPRITE_FILES={
   hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png?v=3",
   icestore:"assets/icestore.png", stonestore:"assets/stonestore.png", camp:"assets/camp.png",
   factory:"assets/factory.png", hangar:"assets/hangar.png", lab:"assets/lab.png", altar:"assets/altar.png",
-  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/generated/cannon_base.png?v=1"
+  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/cannon.png"
 };
 // после автокропа картинка = само здание; base=1.0 ставит низ ровно на тень.
 // общий коэффициент подгонки: <1 ужимает здания внутрь их клеток (один регулятор на все)
@@ -981,9 +981,10 @@ function drawPumpBeam(b,cen,W,H,bottomY){
 // ── Вращающаяся башня пушки: основание (твой спрайт) статично, поверх — кадр башни, повёрнутый к цели ──
 // 16 ракурсов запечены из 3D твоей же башни. Лист 4×4, кадр 256px.
 const turretSheet={img:null,ready:false};
-(function(){const im=new Image();im.onload=function(){turretSheet.img=im;turretSheet.ready=true;};im.onerror=function(){};im.src="assets/generated/cannon_turret_sheet.png?v=1";})();
+// вращающаяся башня ОТКЛЮЧЕНА (пушка возвращена к статичному спрайту по просьбе). Лист не грузим. Чтобы вернуть — раскомментировать загрузку и переименовать ключ _cannon_off → cannon ниже.
+// (function(){const im=new Image();im.onload=function(){turretSheet.img=im;turretSheet.ready=true;};im.onerror=function(){};im.src="assets/generated/cannon_turret_sheet.png?v=1";})();
 const TURRET_RIG={
-  cannon:{frames:16,cols:4,fpx:256,
+  _cannon_off:{frames:16,cols:4,fpx:256,
     scale:1.569,            // ширина кадра башни / ширина нарисованного основания(hex)
     ringX:0.501,ringY:0.169,// центр кольца в долях нарисованного основания
     mountX:0.5,mountY:0.64, // точка крепления внутри кадра башни
