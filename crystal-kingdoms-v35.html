@@ -991,9 +991,19 @@ function drawSpriteBuilding(b,spr){
   const bottomY=cen[1]+s*TH*ZOOM*0.5*spr.base*SPRITE_FIT+(spr.dy||0)*ZOOM;
   const flip=(b.type==="wall")?wallFlip(b):b.flip;
   ctx.globalAlpha=b.built===false?0.7:1;
-  if(flip){ctx.save();ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
+  // отдача турели при выстреле: кадр спрайта «кикает» назад и слегка сжимается, затем садится (0.28с)
+  let _rc=0; if(b.built&&BT[b.type].role==="def"){const el=ANIM-(b._recoilAt||-9);if(el>=0&&el<0.28){const k=1-el/0.28;_rc=k*k;}}
+  ctx.save();
+  if(_rc>0){ctx.translate(5*ZOOM*_rc,-3.5*ZOOM*_rc);const sc=1-0.05*_rc;ctx.translate(cen[0],bottomY);ctx.scale(sc,sc);ctx.translate(-cen[0],-bottomY);}
+  if(flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}
   else ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);
+  ctx.restore();
   ctx.globalAlpha=1;
+  // вспышка из ствола в первый момент выстрела
+  if(_rc>0.55){const mx=cen[0]-W*0.22*(flip?-1:1),my=bottomY-H*0.40,fa=(_rc-0.55)/0.45;
+    ctx.save();ctx.globalCompositeOperation="lighter";
+    const g=ctx.createRadialGradient(mx,my,0,mx,my,W*0.2);g.addColorStop(0,"rgba(255,242,190,"+(0.9*fa)+")");g.addColorStop(0.45,"rgba(255,170,70,"+(0.5*fa)+")");g.addColorStop(1,"rgba(255,120,40,0)");
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(mx,my,W*0.2,0,7);ctx.fill();ctx.restore();}
   if(b===hoverObj){ctx.save();ctx.globalAlpha=0.15;ctx.globalCompositeOperation="lighter"; // очень лёгкая подсветка при наведении
     if(flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);}
     ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
@@ -1815,7 +1825,7 @@ function updateWar(dt){
     for(const u of war.units){if(u.hp<=0)continue;
       if(b.target==="ground"&&u.air)continue;if(b.target==="air"&&!u.air)continue;
       const d=Math.hypot(b.gx+1-u.gx,b.gy+1-u.gy);if(d<bd){bd=d;best=u;}}
-    if(best){b.cd=b.cdv;sfx("shoot");
+    if(best){b.cd=b.cdv;sfx("shoot");b._recoilAt=ANIM;
       war.shots.push({x1:b.gx+1,y1:b.gy+1,x2:best.gx,y2:best.gy,life:0.1,col:b.target==="air"?"rgba(159,224,255,.95)":"rgba(255,160,90,.9)"});
       if(b.splash){war.blasts.push({x:best.gx,y:best.gy,r:b.splash,life:0.6,fire:b.burn?1:0});const bsx=iso(best.gx,best.gy);burst(bsx[0],bsx[1],b.burn?12:10,b.burn?"rgba(255,120,40,.95)":"rgba(255,150,70,.95)",{spd:90,life:0.45,size:3});addShake(b.burn?3:4);
         for(const u of war.units){if(u.hp<=0||u.air)continue;if(Math.hypot(u.gx-best.gx,u.gy-best.gy)<=b.splash){
@@ -2287,7 +2297,7 @@ function updateSiege(dt){
     let best=null,bd=lv.range; const tgt=d.target;
     for(const u of siege.units){if(u.hp<=0)continue;if(tgt==="ground"&&u.air)continue;if(tgt==="air"&&!u.air)continue;
       const dd=Math.hypot(b.gx+d.size/2-u.gx,b.gy+d.size/2-u.gy);if(dd<bd){bd=dd;best=u;}}
-    if(best){b._cd=lv.cd;sfx("shoot");
+    if(best){b._cd=lv.cd;sfx("shoot");b._recoilAt=ANIM;
       siege.shots.push({x1:b.gx+d.size/2,y1:b.gy+d.size/2,x2:best.gx,y2:best.gy,life:0.1,col:tgt==="air"?"rgba(159,224,255,.95)":"rgba(255,160,90,.9)"});
       if(d.splash){siege.blasts.push({x:best.gx,y:best.gy,r:d.splash,life:0.6,fire:d.burn?1:0});const bsx=iso(best.gx,best.gy);burst(bsx[0],bsx[1],d.burn?10:8,d.burn?"rgba(255,120,40,.95)":"rgba(255,150,70,.95)",{spd:90,life:0.45,size:3});addShake(3);
         for(const u of siege.units){if(u.hp<=0||u.air)continue;if(Math.hypot(u.gx-best.gx,u.gy-best.gy)<=d.splash){
