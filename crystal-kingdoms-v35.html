@@ -1141,7 +1141,7 @@ function drawBar(cx,topY,w,p,fg,bg){p=Math.max(0,Math.min(1,p));ctx.fillStyle=bg
 /* ===== РЫЦАРЬ (Brute) — спрайт с анимацией ===== */
 // ── Спрайты юнитов: ОДИН png на тип, анимируется кодом (шаг, наклон, выпад, разворот, парение) ──
 // положи в assets/: knight.png (Brute), striker.png, marine.png, blaze.png, skyfire.png, hero.png
-const UNIT_SPR_FILES={brute:"assets/knight.png?v=2",striker:"assets/striker.png",marine:"assets/marine.png",blaze:"assets/blaze.png",skyfire:"assets/skyfire.png",hero:"assets/hero.png"};
+const UNIT_SPR_FILES={brute:"assets/generated/brute.png?v=1",striker:"assets/striker.png",marine:"assets/marine.png",blaze:"assets/blaze.png",skyfire:"assets/skyfire.png",hero:"assets/hero.png"};
 const UNIT_SPR_H={brute:4.4,striker:3.8,marine:3.7,blaze:3.9,skyfire:3.6,hero:4.8}; // высота спрайта в радиусах r
 const unitSpr={};
 for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};unitSpr[k]=rec;const im=new Image();
@@ -1188,55 +1188,61 @@ function drawUnitSprite(u,cx,baseY,r,spr,hMul){
    (legTop) выше пояса (waist), поэтому когда корпус подпрыгивает — таз всё
    равно нарисован ногами. Все числа — доли исходной картинки (0..1), тюнятся. */
 const UNIT_RIG={
-  // brute (assets/knight.png): фигура центрирована, ноги с явным просветом ~0.455
-  brute:{x0:0.15,x1:0.82,y0:0.04,y1:0.965,waist:0.70,legTop:0.64,split:0.455,hipY:0.665,hipLX:0.42,hipRX:0.50,spd:9}
+  // brute (assets/generated/brute.png): полный риг — голова, торс, рука с мечом, рука со щитом, 2 ноги.
+  // Части — доли исходной картинки (x0,y0..x1,y1); px,py — точка вращения (сустав).
+  // order — порядок отрисовки (сзади→вперёд). footY — где у спрайта ступни (чтобы ставить на землю).
+  brute:{spd:9,footY:0.888,order:["legL","legR","torso","shieldArm","swordArm","head"],parts:{
+    head:     {x0:0.32,y0:0.05,x1:0.74,y1:0.40,px:0.52,py:0.37},
+    torso:    {x0:0.20,y0:0.30,x1:0.78,y1:0.67,px:0.49,py:0.66},
+    swordArm: {x0:0.03,y0:0.40,x1:0.33,y1:0.84,px:0.33,py:0.47},
+    shieldArm:{x0:0.55,y0:0.40,x1:0.87,y1:0.76,px:0.66,py:0.48},
+    legL:     {x0:0.22,y0:0.60,x1:0.46,y1:0.91,px:0.40,py:0.64},
+    legR:     {x0:0.46,y0:0.60,x1:0.69,y1:0.91,px:0.50,py:0.64}
+  }}
 };
+// Риг по частям: каждая часть — свой кусок картинки, движется кодом (поворот в суставе + сдвиг + масштаб).
+// Ходьба: ноги шагают, руки контр-махом, торс/голова качаются. Покой: дыхание + лёгкое колыхание меча/щита/головы.
+// Удар: рука с мечом реально взмахивает вперёд (замах→рубёж→возврат), торс делает выпад.
 function drawUnitRig(u,cx,baseY,r,rec,hMul,cfg){
   const spr=rec.img,iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
   const H=r*(hMul||4.4),W=H*(iw/ih),T=ANIM;
   if(u._ph===undefined)u._ph=(u.gx+u.gy)*1.3;
   let face=u._face||1;
-  if(u.target){const s=BT[u.target.type].size,sdx=((u.target.gx+s/2)-u.gx)-((u.target.gy+s/2)-u.gy);
+  if(u.target){const sz=BT[u.target.type].size,sdx=((u.target.gx+sz/2)-u.gx)-((u.target.gy+sz/2)-u.gy);
     if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
-  const lx=fx=>-W/2+fx*W, ly=fy=>-H+fy*H;                 // доля картинки -> локальные коорд (низ-центр = 0,0)
-  const part=(ax,ay,bx,by)=>ctx.drawImage(spr, ax*iw,ay*ih,(bx-ax)*iw,(by-ay)*ih, lx(ax),ly(ay),(bx-ax)*W,(by-ay)*H);
-  const walking=u.moving&&!(u._atk>0),flying=!!u.air,atk=u._atk||0;
-  let bob=0,twist=0,rotL=0,rotR=0,liftL=0,liftR=0,sxU=1,syU=1,fbob=0,ftilt=0;
-  if(flying){                                             // авиация — парение, без шага (на случай рига для летающих)
-    fbob=Math.sin(T*3+u._ph)*0.03; ftilt=Math.sin(T*2+u._ph)*0.05;
-  }else if(walking){                                      // марш: ноги по очереди — упор на подъём колена, не на разворот (ступни чище)
-    const ph=T*(cfg.spd||9)+u._ph,s=Math.sin(ph);
-    liftL=Math.max(0,s);  rotL= liftL*0.10;               // левая нога поднимается в первой половине цикла
-    liftR=Math.max(0,-s); rotR=-liftR*0.10;               // правая — во второй
-    bob=Math.abs(s)*0.05;                                 // корпус всходит на шаг
-    twist=s*0.06;                                         // лёгкое скручивание корпуса — меч качается в такт
-  }else{                                                  // покой — дыхание + медленное скручивание (живой торс, меч слегка водит)
-    const br=Math.sin(T*2.2+u._ph); bob=Math.max(0,br)*0.01; syU=1+0.03*br; sxU=1-0.02*br; twist=Math.sin(T*1.3+u._ph)*0.025;
+  const lx=fx=>-W/2+fx*W, ly=fy=>-H+fy*H;
+  const walking=u.moving&&!(u._atk>0),atk=u._atk||0,ph=T*(cfg.spd||9)+u._ph,s=Math.sin(ph);
+  const tf={head:{},torso:{},swordArm:{},shieldArm:{},legL:{},legR:{}};
+  if(atk>0){                                               // УДАР: взмах рукой с мечом вперёд + выпад корпусом
+    const q=1-atk;                                         // q: 0(момент удара)→1(конец)
+    tf.swordArm.rot = q<0.2 ? (q/0.2)*0.45 : q<0.5 ? 0.45-((q-0.2)/0.3)*1.45 : -1.0*(1-(q-0.5)/0.5);
+    const l=Math.sin(Math.min(1,q/0.6)*Math.PI);
+    tf.torso={rot:l*0.12,dx:l*0.05}; tf.head={rot:l*0.06,dx:l*0.04}; tf.shieldArm={rot:-l*0.10};
+  }else if(walking){                                       // ХОДЬБА: марш + контр-мах рук + качание корпуса
+    tf.legL={dy:-Math.max(0,s)*0.12,rot:Math.max(0,s)*0.10};
+    tf.legR={dy:-Math.max(0,-s)*0.12,rot:-Math.max(0,-s)*0.10};
+    tf.torso={dy:-Math.abs(s)*0.045,rot:s*0.05};
+    tf.head={dy:-Math.abs(s)*0.02,rot:s*0.03};
+    tf.swordArm={rot:-s*0.18}; tf.shieldArm={rot:s*0.14};
+  }else{                                                   // ПОКОЙ: дыхание + лёгкое колыхание (живой даже стоя)
+    const br=Math.sin(T*2.2+u._ph);
+    tf.torso={dy:-Math.max(0,br)*0.008,sx:1-0.012*br,sy:1+0.018*br,rot:Math.sin(T*1.3+u._ph)*0.018};
+    tf.head={rot:Math.sin(T*1.3+0.4+u._ph)*0.03,dy:-Math.max(0,br)*0.006};
+    tf.swordArm={rot:Math.sin(T*1.6+u._ph)*0.07}; tf.shieldArm={rot:Math.sin(T*1.8+1+u._ph)*0.05};
   }
-  // удар: верх крутится вокруг груди по дуге замах→рубёж→возврат → вшитый меч реально взмахивает (без дыр — кусок цельный)
-  let swing=0,lunge=0;
-  if(atk>0){const q=1-atk;                                // q: 0 (момент удара) → 1 (конец)
-    swing = q<0.22 ? (q/0.22)*(-0.6) : q<0.5 ? -0.6+((q-0.22)/0.28)*1.05 : 0.45*(1-(q-0.5)/0.5);
-    lunge = Math.sin(Math.min(1,q/0.6)*Math.PI)*0.09;}
+  const PP=cfg.parts;
   ctx.save();
-  ctx.translate(cx, baseY - fbob*H);
+  ctx.translate(cx, baseY+(1-(cfg.footY||0.9))*H);         // ступни на землю (у спрайта снизу пустое поле)
   ctx.scale(face,1);
-  if(flying){const wx=lx(0.49),wy=ly(0.55);ctx.translate(wx,wy);ctx.rotate(ftilt);ctx.translate(-wx,-wy);part(cfg.x0,cfg.y0,cfg.x1,cfg.y1);ctx.restore();return;}
-  const hy=ly(cfg.hipY);
-  const leg=(ax,bx,hipX,rot,lift)=>{                      // одна нога: подъём колена + лёгкий поворот в бедре
-    ctx.save();const px=lx(hipX);
-    ctx.translate(px,hy);ctx.rotate(rot);ctx.translate(0,-lift*0.13*H);ctx.translate(-px,-hy);
-    part(ax,cfg.legTop,bx,cfg.y1);ctx.restore();
-  };
-  leg(cfg.x0,cfg.split,cfg.hipLX,rotL,liftL);             // ноги — первыми (сзади)
-  leg(cfg.split,cfg.x1,cfg.hipRX,rotR,liftR);
-  ctx.save();                                             // верх (голова+торс+меч+щит) — поверх, цельным куском (закрывает шов в тазу)
-  ctx.translate(0,-bob*H);
-  if(atk>0){const pvx=lx(0.46),pvy=ly(0.46);ctx.translate(lunge*W,0);ctx.translate(pvx,pvy);ctx.rotate(swing);ctx.translate(-pvx,-pvy);} // замах вокруг груди
-  const wx=lx(0.49),wy=ly(cfg.waist);
-  ctx.translate(wx,wy);ctx.rotate(twist);ctx.scale(sxU,syU);ctx.translate(-wx,-wy);  // скручивание/дыхание вокруг пояса
-  part(cfg.x0,cfg.y0,cfg.x1,cfg.waist);
-  ctx.restore();
+  for(const k of cfg.order){
+    const sd=PP[k]; if(!sd)continue; const t=tf[k]||{};
+    ctx.save();
+    const px=lx(sd.px!=null?sd.px:(sd.x0+sd.x1)/2), py=ly(sd.py!=null?sd.py:(sd.y0+sd.y1)/2);
+    ctx.translate((t.dx||0)*W,(t.dy||0)*H);
+    ctx.translate(px,py);ctx.rotate(t.rot||0);ctx.scale(t.sx||1,t.sy||1);ctx.translate(-px,-py);
+    ctx.drawImage(spr, sd.x0*iw,sd.y0*ih,(sd.x1-sd.x0)*iw,(sd.y1-sd.y0)*ih, lx(sd.x0),ly(sd.y0),(sd.x1-sd.x0)*W,(sd.y1-sd.y0)*H);
+    ctx.restore();
+  }
   ctx.restore();
 }
 function drawUnit(u){
@@ -1246,7 +1252,7 @@ function drawUnit(u){
   if(_usp&&_usp.ready&&_usp.img){const ty=cy0-fly;const _rig=UNIT_RIG[u.type];
     if(_rig)drawUnitRig(u,cx,ty,r,_usp,UNIT_SPR_H[u.type]||4.4,_rig);
     else drawUnitSprite(u,cx,ty,r,_usp.img,UNIT_SPR_H[u.type]||4.0);
-    if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
+    if(u._atk>0&&!_rig){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
     if(u.hero){ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.moveTo(cx-3*ZOOM,ty-r*4.9);ctx.lineTo(cx,ty-r*5.5);ctx.lineTo(cx+3*ZOOM,ty-r*4.9);ctx.closePath();ctx.fill();}
     if(u.hp<u.maxhp)drawBar(cx,ty-r*4.6,r*2.4,u.hp/u.maxhp,u.hero?"#caa9ff":"#5ce0a8","#3a1d1d");return;}
   const def=u.def;
