@@ -921,7 +921,7 @@ const SPRITE_FILES={
   hq:"assets/hq.png", icemine:"assets/icemine.png", stonepump:"assets/stonepump.png?v=3",
   icestore:"assets/icestore.png", stonestore:"assets/stonestore.png", camp:"assets/camp.png",
   factory:"assets/factory.png", hangar:"assets/hangar.png", lab:"assets/lab.png", altar:"assets/altar.png",
-  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/cannon.png"
+  flame:"assets/flame.png?v=2", aa:"assets/aa.png?v=2", mortar:"assets/mortar.png?v=2", wall:"assets/wall.png", cannon:"assets/generated/cannon_base.png?v=1"
 };
 // после автокропа картинка = само здание; base=1.0 ставит низ ровно на тень.
 // общий коэффициент подгонки: <1 ужимает здания внутрь их клеток (один регулятор на все)
@@ -978,6 +978,29 @@ function drawPumpBeam(b,cen,W,H,bottomY){
   ctx.save();ctx.translate(pvx,pvy);if(b.flip)ctx.scale(-1,1);ctx.rotate(ang);
   ctx.drawImage(im,-PUMP.bpX*bw,-PUMP.bpY*bh,bw,bh);ctx.restore();
 }
+// ── Вращающаяся башня пушки: основание (твой спрайт) статично, поверх — кадр башни, повёрнутый к цели ──
+// 16 ракурсов запечены из 3D твоей же башни. Лист 4×4, кадр 256px.
+const turretSheet={img:null,ready:false};
+(function(){const im=new Image();im.onload=function(){turretSheet.img=im;turretSheet.ready=true;};im.onerror=function(){};im.src="assets/generated/cannon_turret_sheet.png?v=1";})();
+const TURRET_RIG={
+  cannon:{frames:16,cols:4,fpx:256,
+    scale:1.569,            // ширина кадра башни / ширина нарисованного основания(hex)
+    ringX:0.501,ringY:0.169,// центр кольца в долях нарисованного основания
+    mountX:0.5,mountY:0.64, // точка крепления внутри кадра башни
+    angOffset:90,dir:1,     // калибровка наведения (угол→кадр); подстроим по факту
+    restFrame:0,            // кадр в покое (нет цели)
+    recoil:7,barrelLen:0.30 // отдача (px*ZOOM) и вынос вспышки вдоль ствола (доли ширины башни)
+  }
+};
+// какой кадр башни смотрит на цель t из здания b (или restFrame)
+function turretFrameFor(b,rig,cen){
+  if((mode==="war"||siege.units.length>0)&&b._tgt&&b._tgt.hp>0){
+    const ts=iso(b._tgt.gx,b._tgt.gy),a=Math.atan2(ts[1]-cen[1],ts[0]-cen[0])*180/Math.PI;
+    let f=Math.round((a*rig.dir+rig.angOffset)/(360/rig.frames));
+    b._aimA=a; return ((f%rig.frames)+rig.frames)%rig.frames;
+  }
+  return rig.restFrame||0;
+}
 let _wallSet=null; // клетки стен текущей сцены — для авто-ориентации сегментов забора
 function setWalls(arr){_wallSet=new Set();if(arr)for(const b of arr)if(b&&b.type==="wall"&&(b.hp===undefined||b.hp>0))_wallSet.add(b.gx+","+b.gy);}
 function wallFlip(b){if(!_wallSet)return!!b.flip;const has=(x,y)=>_wallSet.has(x+","+y);
@@ -992,7 +1015,7 @@ function drawSpriteBuilding(b,spr){
   const flip=(b.type==="wall")?wallFlip(b):b.flip;
   ctx.globalAlpha=b.built===false?0.7:1;
   // отдача турели при выстреле: кадр спрайта «кикает» назад и слегка сжимается, затем садится (0.28с)
-  let _rc=0; if(b.built&&BT[b.type].role==="def"){const el=ANIM-(b._recoilAt||-9);if(el>=0&&el<0.28){const k=1-el/0.28;_rc=k*k;}}
+  let _rc=0; if(b.built&&BT[b.type].role==="def"&&!TURRET_RIG[b.type]){const el=ANIM-(b._recoilAt||-9);if(el>=0&&el<0.28){const k=1-el/0.28;_rc=k*k;}}
   ctx.save();
   if(_rc>0){ctx.translate(5*ZOOM*_rc,-3.5*ZOOM*_rc);const sc=1-0.05*_rc;ctx.translate(cen[0],bottomY);ctx.scale(sc,sc);ctx.translate(-cen[0],-bottomY);}
   if(flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}
@@ -1009,6 +1032,18 @@ function drawSpriteBuilding(b,spr){
     ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);ctx.restore();}
   if(b.type==="stonepump"&&b.built!==false)drawPumpBeam(b,cen,W,H,bottomY); // анимированная балка качалки
   if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
+  // вращающаяся башня (риг: пушка) — поверх статичного основания, наводится на цель + отдача вдоль ствола
+  {const rig=TURRET_RIG[b.type];
+   if(rig&&turretSheet.ready&&turretSheet.img&&b.built){
+     const f=turretFrameFor(b,rig,cen);
+     const TW_=rig.scale*W, ringSx=cen[0]+(rig.ringX-0.5)*W, ringSy=bottomY-H+rig.ringY*H;
+     let kx=0,ky=0,fl=0; const el=ANIM-(b._recoilAt||-9);
+     if(el>=0&&el<0.28){const k=1-el/0.28,rc=k*k,ad=(b._aimA!=null?b._aimA*Math.PI/180:-2.2);kx=-Math.cos(ad)*rig.recoil*ZOOM*rc;ky=-Math.sin(ad)*rig.recoil*ZOOM*rc;fl=rc;}
+     const sx=(f%rig.cols)*rig.fpx, sy=((f/rig.cols)|0)*rig.fpx;
+     ctx.drawImage(turretSheet.img, sx,sy,rig.fpx,rig.fpx, ringSx-rig.mountX*TW_+kx, ringSy-rig.mountY*TW_+ky, TW_,TW_);
+     if(fl>0.55&&b._aimA!=null){const fa=(fl-0.55)/0.45,a=b._aimA*Math.PI/180,mx=ringSx+Math.cos(a)*rig.barrelLen*TW_,my=ringSy+Math.sin(a)*rig.barrelLen*TW_-TW_*0.12;
+       ctx.save();ctx.globalCompositeOperation="lighter";const g=ctx.createRadialGradient(mx,my,0,mx,my,TW_*0.16);g.addColorStop(0,"rgba(255,242,190,"+(0.9*fa)+")");g.addColorStop(0.45,"rgba(255,170,70,"+(0.5*fa)+")");g.addColorStop(1,"rgba(255,120,40,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(mx,my,TW_*0.16,0,7);ctx.fill();ctx.restore();}
+   }}
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
     ctx.fillStyle="rgba(8,18,40,.85)";ctx.strokeStyle="#3f8fe0";ctx.lineWidth=1;ctx.beginPath();ctx.arc(cen[0],by,8*ZOOM,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle="#bfeaff";ctx.font="bold "+(10*ZOOM)+"px Trebuchet MS";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(b.level,cen[0],by);}
@@ -1825,7 +1860,7 @@ function updateWar(dt){
     for(const u of war.units){if(u.hp<=0)continue;
       if(b.target==="ground"&&u.air)continue;if(b.target==="air"&&!u.air)continue;
       const d=Math.hypot(b.gx+1-u.gx,b.gy+1-u.gy);if(d<bd){bd=d;best=u;}}
-    if(best){b.cd=b.cdv;sfx("shoot");b._recoilAt=ANIM;
+    if(best){b.cd=b.cdv;sfx("shoot");b._recoilAt=ANIM;b._tgt=best;
       war.shots.push({x1:b.gx+1,y1:b.gy+1,x2:best.gx,y2:best.gy,life:0.1,col:b.target==="air"?"rgba(159,224,255,.95)":"rgba(255,160,90,.9)"});
       if(b.splash){war.blasts.push({x:best.gx,y:best.gy,r:b.splash,life:0.6,fire:b.burn?1:0});const bsx=iso(best.gx,best.gy);burst(bsx[0],bsx[1],b.burn?12:10,b.burn?"rgba(255,120,40,.95)":"rgba(255,150,70,.95)",{spd:90,life:0.45,size:3});addShake(b.burn?3:4);
         for(const u of war.units){if(u.hp<=0||u.air)continue;if(Math.hypot(u.gx-best.gx,u.gy-best.gy)<=b.splash){
@@ -2297,7 +2332,7 @@ function updateSiege(dt){
     let best=null,bd=lv.range; const tgt=d.target;
     for(const u of siege.units){if(u.hp<=0)continue;if(tgt==="ground"&&u.air)continue;if(tgt==="air"&&!u.air)continue;
       const dd=Math.hypot(b.gx+d.size/2-u.gx,b.gy+d.size/2-u.gy);if(dd<bd){bd=dd;best=u;}}
-    if(best){b._cd=lv.cd;sfx("shoot");b._recoilAt=ANIM;
+    if(best){b._cd=lv.cd;sfx("shoot");b._recoilAt=ANIM;b._tgt=best;
       siege.shots.push({x1:b.gx+d.size/2,y1:b.gy+d.size/2,x2:best.gx,y2:best.gy,life:0.1,col:tgt==="air"?"rgba(159,224,255,.95)":"rgba(255,160,90,.9)"});
       if(d.splash){siege.blasts.push({x:best.gx,y:best.gy,r:d.splash,life:0.6,fire:d.burn?1:0});const bsx=iso(best.gx,best.gy);burst(bsx[0],bsx[1],d.burn?10:8,d.burn?"rgba(255,120,40,.95)":"rgba(255,150,70,.95)",{spd:90,life:0.45,size:3});addShake(3);
         for(const u of siege.units){if(u.hp<=0||u.air)continue;if(Math.hypot(u.gx-best.gx,u.gy-best.gy)<=d.splash){

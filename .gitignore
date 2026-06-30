@@ -7,3 +7,5 @@ elevenlabs-key.txt
 *.key
 meshy-key.txt
 tripo-key.txt
+*.glb
+assets/generated/3d/
