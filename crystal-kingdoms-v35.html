@@ -1200,36 +1200,41 @@ function drawUnitRig(u,cx,baseY,r,rec,hMul,cfg){
     if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
   const lx=fx=>-W/2+fx*W, ly=fy=>-H+fy*H;                 // доля картинки -> локальные коорд (низ-центр = 0,0)
   const part=(ax,ay,bx,by)=>ctx.drawImage(spr, ax*iw,ay*ih,(bx-ax)*iw,(by-ay)*ih, lx(ax),ly(ay),(bx-ax)*W,(by-ay)*H);
-  const walking=u.moving&&!(u._atk>0),flying=!!u.air;
-  let bob=0,sway=0,lunge=0,upTilt=0,rotL=0,rotR=0,liftL=0,liftR=0,sxU=1,syU=1;
-  if(walking){                                            // тяжёлый марш: ноги по очереди шагают (высоко поднимая колени)
+  const walking=u.moving&&!(u._atk>0),flying=!!u.air,atk=u._atk||0;
+  let bob=0,twist=0,rotL=0,rotR=0,liftL=0,liftR=0,sxU=1,syU=1,fbob=0,ftilt=0;
+  if(flying){                                             // авиация — парение, без шага (на случай рига для летающих)
+    fbob=Math.sin(T*3+u._ph)*0.03; ftilt=Math.sin(T*2+u._ph)*0.05;
+  }else if(walking){                                      // марш: ноги по очереди — упор на подъём колена, не на разворот (ступни чище)
     const ph=T*(cfg.spd||9)+u._ph,s=Math.sin(ph);
-    liftL=Math.max(0,s);  rotL= liftL*0.20;               // левая нога вверх в первой половине цикла
-    liftR=Math.max(0,-s); rotR=-liftR*0.20;               // правая — во второй
-    bob=Math.abs(s)*0.05;                                 // корпус всходит на каждый шаг (доля H)
-    sway=s*0.05;                                          // лёгкая раскачка плеч
-  }else if(flying){
-    bob=Math.sin(T*3+u._ph)*0.03; upTilt=Math.sin(T*2+u._ph)*0.05;
-  }else{                                                  // покой — дыхание (только верх)
-    const br=Math.sin(T*2.4+u._ph); bob=Math.max(0,br)*0.012; syU=1+0.025*br; sxU=1-0.018*br;
+    liftL=Math.max(0,s);  rotL= liftL*0.10;               // левая нога поднимается в первой половине цикла
+    liftR=Math.max(0,-s); rotR=-liftR*0.10;               // правая — во второй
+    bob=Math.abs(s)*0.05;                                 // корпус всходит на шаг
+    twist=s*0.06;                                         // лёгкое скручивание корпуса — меч качается в такт
+  }else{                                                  // покой — дыхание + медленное скручивание (живой торс, меч слегка водит)
+    const br=Math.sin(T*2.2+u._ph); bob=Math.max(0,br)*0.01; syU=1+0.03*br; sxU=1-0.02*br; twist=Math.sin(T*1.3+u._ph)*0.025;
   }
-  if(u._atk>0){const sw=Math.sin(u._atk*Math.PI);         // удар: выпад корпусом + наклон
-    lunge=sw*0.10*face; upTilt+=sw*0.16*face; sxU*=1+0.06*sw; syU*=1-0.05*sw;}
+  // удар: верх крутится вокруг груди по дуге замах→рубёж→возврат → вшитый меч реально взмахивает (без дыр — кусок цельный)
+  let swing=0,lunge=0;
+  if(atk>0){const q=1-atk;                                // q: 0 (момент удара) → 1 (конец)
+    swing = q<0.22 ? (q/0.22)*(-0.6) : q<0.5 ? -0.6+((q-0.22)/0.28)*1.05 : 0.45*(1-(q-0.5)/0.5);
+    lunge = Math.sin(Math.min(1,q/0.6)*Math.PI)*0.09;}
   ctx.save();
-  ctx.translate(cx+lunge*W, baseY);
+  ctx.translate(cx, baseY - fbob*H);
   ctx.scale(face,1);
+  if(flying){const wx=lx(0.49),wy=ly(0.55);ctx.translate(wx,wy);ctx.rotate(ftilt);ctx.translate(-wx,-wy);part(cfg.x0,cfg.y0,cfg.x1,cfg.y1);ctx.restore();return;}
   const hy=ly(cfg.hipY);
-  const leg=(ax,bx,hipX,rot,lift)=>{                      // одна нога: поворот в бедре + подъём
+  const leg=(ax,bx,hipX,rot,lift)=>{                      // одна нога: подъём колена + лёгкий поворот в бедре
     ctx.save();const px=lx(hipX);
-    ctx.translate(px,hy);ctx.rotate(rot);ctx.translate(0,-lift*0.11*H);ctx.translate(-px,-hy);
+    ctx.translate(px,hy);ctx.rotate(rot);ctx.translate(0,-lift*0.13*H);ctx.translate(-px,-hy);
     part(ax,cfg.legTop,bx,cfg.y1);ctx.restore();
   };
   leg(cfg.x0,cfg.split,cfg.hipLX,rotL,liftL);             // ноги — первыми (сзади)
   leg(cfg.split,cfg.x1,cfg.hipRX,rotR,liftR);
-  ctx.save();                                             // верх — поверх (закрывает шов в тазу)
-  const wx=lx(0.49),wy=ly(cfg.waist);
+  ctx.save();                                             // верх (голова+торс+меч+щит) — поверх, цельным куском (закрывает шов в тазу)
   ctx.translate(0,-bob*H);
-  ctx.translate(wx,wy);ctx.rotate(upTilt+sway);ctx.scale(sxU,syU);ctx.translate(-wx,-wy);
+  if(atk>0){const pvx=lx(0.46),pvy=ly(0.46);ctx.translate(lunge*W,0);ctx.translate(pvx,pvy);ctx.rotate(swing);ctx.translate(-pvx,-pvy);} // замах вокруг груди
+  const wx=lx(0.49),wy=ly(cfg.waist);
+  ctx.translate(wx,wy);ctx.rotate(twist);ctx.scale(sxU,syU);ctx.translate(-wx,-wy);  // скручивание/дыхание вокруг пояса
   part(cfg.x0,cfg.y0,cfg.x1,cfg.waist);
   ctx.restore();
   ctx.restore();
