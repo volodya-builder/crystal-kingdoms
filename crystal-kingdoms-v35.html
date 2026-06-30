@@ -1141,7 +1141,7 @@ function drawBar(cx,topY,w,p,fg,bg){p=Math.max(0,Math.min(1,p));ctx.fillStyle=bg
 /* ===== РЫЦАРЬ (Brute) — спрайт с анимацией ===== */
 // ── Спрайты юнитов: ОДИН png на тип, анимируется кодом (шаг, наклон, выпад, разворот, парение) ──
 // положи в assets/: knight.png (Brute), striker.png, marine.png, blaze.png, skyfire.png, hero.png
-const UNIT_SPR_FILES={brute:"assets/knight.png",striker:"assets/striker.png",marine:"assets/marine.png",blaze:"assets/blaze.png",skyfire:"assets/skyfire.png",hero:"assets/hero.png"};
+const UNIT_SPR_FILES={brute:"assets/knight.png?v=2",striker:"assets/striker.png",marine:"assets/marine.png",blaze:"assets/blaze.png",skyfire:"assets/skyfire.png",hero:"assets/hero.png"};
 const UNIT_SPR_H={brute:4.4,striker:3.8,marine:3.7,blaze:3.9,skyfire:3.6,hero:4.8}; // высота спрайта в радиусах r
 const unitSpr={};
 for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};unitSpr[k]=rec;const im=new Image();
@@ -1157,14 +1157,27 @@ function drawUnitSprite(u,cx,baseY,r,spr,hMul){
   let face=u._face||1;
   if(u.target){const s=BT[u.target.type].size,sdx=((u.target.gx+s/2)-u.gx)-((u.target.gy+s/2)-u.gy);
     if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
-  const flying=!!u.air,walking=u.moving&&!(u._atk>0);
-  const bob=flying?Math.sin(ANIM*3+u._ph)*2.2*ZOOM                                  // авиация — парение
-    :(walking?Math.abs(Math.sin(ANIM*9+u._ph))*2.4*ZOOM:Math.sin(ANIM*2+u._ph)*0.9*ZOOM); // шаг / дыхание
-  const tilt=(walking&&!flying)?Math.sin(ANIM*9+u._ph)*0.05:0;
-  const lunge=u._atk>0?Math.sin(u._atk*Math.PI)*6*ZOOM*face:0;                       // выпад при ударе
+  const flying=!!u.air,walking=u.moving&&!(u._atk>0),T=ANIM;
+  let bob,sx=1,sy=1,tilt=0,lunge=0;
+  if(flying){                                          // авиация — парение + лёгкий крен
+    bob=Math.sin(T*3+u._ph)*2.6*ZOOM; tilt=Math.sin(T*2+u._ph)*0.05;
+  }else if(walking){                                   // бодрый подпрыгивающий шаг
+    const ph=T*11+u._ph,step=Math.sin(ph),k=Math.cos(ph);
+    bob=Math.abs(step)*3.6*ZOOM;
+    sx=1+0.08*k; sy=1-0.08*k;                           // squash & stretch (сжатие/растяжение)
+    tilt=step*0.10;                                     // раскачка корпуса
+  }else{                                                // покой — дыхание
+    const br=Math.sin(T*2.4+u._ph);
+    bob=br*1.1*ZOOM; sy=1+0.04*br; sx=1-0.03*br;
+  }
+  if(u._atk>0){                                         // удар: выпад + наклон + «вжатие»
+    const sw=Math.sin(u._atk*Math.PI);                 // 0→1→0
+    lunge=sw*11*ZOOM*face; tilt+=sw*0.12*face;
+    sx*=1+0.11*sw; sy*=1-0.07*sw;
+  }
   ctx.save();
   ctx.translate(cx+lunge,baseY-bob);
-  ctx.scale(face,1);ctx.rotate(tilt);
+  ctx.scale(face*sx,sy);ctx.rotate(tilt);
   ctx.drawImage(spr,-W/2,-H,W,H);
   ctx.restore();
 }
