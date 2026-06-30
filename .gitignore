@@ -2,3 +2,6 @@
 *.bat
 photo_*.jpg
 gen-sprites.log
+solana-key.txt
+elevenlabs-key.txt
+*.key

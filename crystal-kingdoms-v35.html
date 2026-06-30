@@ -639,9 +639,9 @@ function genBeachDecor(){const d=[],sand=["chest","shells","anchor","umbrella"],
   d.push({ob:true,beach:true,type:"lighthouse",gx:Math.round(-M-0.6),gy:Math.round(GRID*0.42)});
   return d;}
 function openChest(o){if(confirm("Открыть сундук? (+5000 Gold, +5 Ruby)")){
-    const c=caps();S.ice=Math.min(c.ice,S.ice+5000);S.gem+=5;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Сундук открыт: +5000 Gold, +5 Ruby");}}
+    const c=caps();S.ice=Math.min(c.ice,S.ice+5000);S.gem+=5;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();if(typeof SND!=="undefined")SND.coin();toast("Сундук открыт: +5000 Gold, +5 Ruby");}}
 function openCrystals(o){if(confirm("Собрать кристаллы? (+15 Ruby)")){
-    S.gem+=15;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();toast("Кристаллы собраны: +15 Ruby");}}
+    S.gem+=15;S.obstacles=S.obstacles.filter(x=>x!==o);save();refreshTop();if(typeof SND!=="undefined")SND.coin();toast("Кристаллы собраны: +15 Ruby");}}
 function genObstacles(){const obs=[];
   const free=(gx,gy,sz)=>{if(gx<1||gy<1||gx+sz>GRID-1||gy+sz>GRID-1)return false;
     for(const b of S.buildings){const bs=BT[b.type].size;if(gx<b.gx+bs&&gx+sz>b.gx&&gy<b.gy+bs&&gy+sz>b.gy)return false;}
@@ -1271,21 +1271,35 @@ let siegeArm=null; // выбранный тип для ручной высадк
 /* ===== ЗВУК + ЧАСТИЦЫ + ТРЯСКА (сочность) ===== */
 let AC=null,sndOn=(typeof localStorage!=="undefined"&&localStorage.getItem("ck_snd")!=="0");
 function actx(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}return AC;}
-try{window.addEventListener("pointerdown",()=>{const c=actx();if(c&&c.state==="suspended")c.resume();});}catch(e){}
+try{window.addEventListener("pointerdown",()=>{const c=actx();if(c&&c.state==="suspended")c.resume();if(typeof loadSfx==="function")loadSfx();});}catch(e){}
 function blip(freq,dur,type,vol,slideTo){const c=actx();if(!c||!sndOn)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();
   o.type=type||"square";o.frequency.setValueAtTime(freq,t);if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),t+dur);
   g.gain.setValueAtTime(vol||0.18,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+0.02);}
 function noiseBurst(dur,vol){const c=actx();if(!c||!sndOn)return;const t=c.currentTime,n=Math.max(1,c.sampleRate*dur|0),buf=c.createBuffer(1,n,c.sampleRate),d=buf.getChannelData(0);
   for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=c.createBufferSource();s.buffer=buf;const g=c.createGain();
   g.gain.setValueAtTime(vol||0.25,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);s.connect(g).connect(c.destination);s.start(t);}
-const SND={
+// Синтез-фолбэк (если сэмпл ещё не загрузился/не найден) — старые «пищалки»
+const SYNTH={
   shoot:()=>blip(440,0.07,"square",0.05,200), hit:()=>blip(200,0.05,"square",0.05,110),
   boom:()=>{noiseBurst(0.35,0.22);blip(90,0.3,"sine",0.16,38);},
   place:()=>blip(300,0.12,"triangle",0.1,520), click:()=>blip(620,0.04,"square",0.04),
   win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>blip(f,0.2,"triangle",0.12),i*130));},
   lose:()=>{[392,330,247].forEach((f,i)=>setTimeout(()=>blip(f,0.28,"sawtooth",0.1,f*0.7),i*160));}};
+// Профессиональные сэмплы (assets/sfx/*.mp3, ElevenLabs) → AudioBuffer, играются с громкостью по событию.
+const SFX_FILES=["click","panel","error","place","upgrade","coin","deploy","hit","shoot","boom","explosion","wallbreak","raid","win","lose"];
+const SFX_VOL={click:0.4,panel:0.5,error:0.55,place:0.7,upgrade:0.7,coin:0.6,deploy:0.6,hit:0.5,shoot:0.4,boom:0.8,explosion:0.85,wallbreak:0.75,raid:0.8,win:0.9,lose:0.85};
+const sfxBuf={}; let _sfxLoaded=false;
+function loadSfx(){if(_sfxLoaded)return;const c=actx();if(!c)return;_sfxLoaded=true;
+  for(const n of SFX_FILES){(function(n){fetch("assets/sfx/"+n+".mp3?v=1").then(r=>r.ok?r.arrayBuffer():Promise.reject(0)).then(b=>c.decodeAudioData(b)).then(buf=>{sfxBuf[n]=buf;}).catch(()=>{});})(n);}}
+function playBuf(name){const c=actx();if(!c||!sndOn)return false;const buf=sfxBuf[name];if(!buf)return false;
+  try{const s=c.createBufferSource();s.buffer=buf;const g=c.createGain();g.gain.value=SFX_VOL[name]||0.6;s.connect(g).connect(c.destination);s.start();}catch(e){return false;}return true;}
+// SND[name]() — сначала сэмпл, иначе синтез-фолбэк. Покрывает и прямые SND.x(), и sfx(x).
+const SND={};
+for(const k of SFX_FILES) SND[k]=()=>{ if(!playBuf(k) && SYNTH[k]) SYNTH[k](); };
 const sfxLast={};
 function sfx(name){const n=(typeof performance!=="undefined")?performance.now():0;if(n-(sfxLast[name]||0)<55)return;sfxLast[name]=n;SND[name]&&SND[name]();}
+// Клик по любой кнопке UI — лёгкий звук
+try{document.addEventListener("click",e=>{if(e.target&&e.target.closest&&e.target.closest("button"))sfx("click");},false);}catch(e){}
 let fx=[]; // частицы (экранные координаты)
 function burst(sx,sy,n,col,o){o=o||{};for(let i=0;i<n&&fx.length<360;i++){const a=Math.random()*6.283,sp=(o.spd||70)*(0.35+Math.random());
   fx.push({x:sx,y:sy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-(o.up||50),life:o.life||0.6,max:o.life||0.6,col:col,size:(o.size||3)*(0.6+Math.random()),grav:o.grav==null?200:o.grav});}}
@@ -1409,7 +1423,7 @@ function applyLevel(b,level){b.level=level;const d=BT[b.type],lv=b.type==="hq"?{
   b.maxhp=lv.hp;b.hp=lv.hp;if(b.type==="hq")S.hqLevel=level;
   if(b.type==="altar"){if(!S.hero)S.hero={level:1,readyAt:0};S.hero.level=lv.hero;}}
 function finishBuild(b,silent){b.built=true;b.buildEnd=0;
-  if(b._upTo){applyLevel(b,b._upTo);b._upTo=null;}
+  if(b._upTo){applyLevel(b,b._upTo);b._upTo=null;if(typeof SND!=="undefined")SND.upgrade();}
   else if(b.type==="altar"&&!S.hero){S.hero={level:1,readyAt:0};}
   if(!silent)refreshTop();}
 function finishNow(b){const left=Math.max(0,(b.buildEnd-Date.now())/1000),price=Math.max(1,Math.ceil(left/15));
@@ -1670,6 +1684,7 @@ function openScout(){
 }
 // начать рейд из конфигурации базы (боты и PvP — общий путь)
 function startWarFrom(c){
+  sfx("raid");                                            // гудок начала рейда
   const hasHero=S.hero&&Date.now()>=(S.hero.readyAt||0);
   war={enemy:c.list,deco:c.deco||[],lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
     heroAvail:hasHero,heroUsed:false,units:[],shots:[],blasts:[],over:false,
@@ -1782,7 +1797,7 @@ function updateWar(dt){
     if(d<=reach){ // в зоне удара — атакуем
       u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=u.dmg*unitDmgMul(u,t.type);u.atkcd=0.7;u._atk=1;
         const tsx=iso(cxg,cyg);hitFx(u,t,tsx);
-        if(t.hp<=0){if(t.type==="wall")war.wallVer++;grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});SND.boom();addShake(6);}
+        if(t.hp<=0){if(t.type==="wall")war.wallVer++;grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});(t.type==="wall"?SND.wallbreak():SND.explosion());addShake(6);}
         else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
         if(u.ranged||u.air){sfx("shoot");war.shots.push({x1:u.gx,y1:u.gy,x2:cxg,y2:cyg,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":(u.type==="blaze"?"rgba(255,160,90,.95)":"rgba(120,224,200,.9)")});}}
       continue;}
@@ -2242,7 +2257,7 @@ function siegeArmManual(type){ // высадка по тапу
 }
 function spawnSiegeAt(type,gx,gy){siegeSnapshot();
   const px=Math.max(0.3,Math.min(GRID-0.3,gx)),py=Math.max(0.3,Math.min(GRID-0.3,gy));
-  mkRaider(type,px,py);if(typeof SND!=="undefined")SND.place();}
+  mkRaider(type,px,py);if(typeof SND!=="undefined")SND.deploy();}
 function endSiege(){if(!siege.units.length&&!siege.hp0)return;
   for(const b of S.buildings){b.hp=b.maxhp;b._cd=0;} // полностью восстановить базу
   siege.units=[];siege.shots=[];siege.blasts=[];siege.hp0=null;siegeArm=null;
