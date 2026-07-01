@@ -63,6 +63,48 @@ async function test(name,fn){const d=row(name);try{const m=await fn();done(d,tru
     try{await import("https://esm.sh/@solana/web3.js@1.95.3");return "esm.sh ок";}
     catch(e){await import("https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm");return "esm.sh не смог, jsdelivr ок";}
   });
+  // САЙТ ИЗНУТРИ: грузим home.html в скрытый iframe и смотрим, работает ли он именно в ЭТОМ браузере
+  await test("Сайт изнутри (скрытая загрузка)",()=>new Promise((res,rej)=>{
+    const fr=document.createElement("iframe");
+    fr.src="home.html?d="+Date.now();
+    fr.style.cssText="width:1280px;height:800px;position:absolute;left:-99999px;top:0;border:0";
+    document.body.appendChild(fr);
+    const bail=setTimeout(()=>rej(new Error("сайт не загрузился за 25 сек")),25000);
+    fr.onload=()=>setTimeout(()=>{
+      try{
+        const d=fr.contentDocument,w=fr.contentWindow;
+        const errs=[]; w.addEventListener("error",e=>errs.push(e.message));
+        const total=d.querySelectorAll(".reveal").length;
+        w.scrollTo(0,d.body.scrollHeight/2);
+        setTimeout(()=>{
+          clearTimeout(bail);
+          const inn=d.querySelectorAll(".reveal.in").length;
+          const og=typeof w.openGame, cw=typeof w.connectWallet;
+          const msg="секций: "+total+", проявилось: "+inn+" · openGame:"+og+" · connectWallet:"+cw+(errs.length?" · JS-ошибки: "+errs.join("; "):"");
+          if(total>0&&inn>0&&og==="function"&&cw==="function")res(msg);
+          else rej(new Error(msg));
+        },2000);
+      }catch(e){clearTimeout(bail);rej(e);}
+    },2500);
+  }));
+  // ИГРА ИЗНУТРИ: грузим игру в скрытый iframe — появится ли канвас (то, что ломалось кнопкой «Играть»)
+  await test("Игра изнутри (скрытая загрузка)",()=>new Promise((res,rej)=>{
+    const fr=document.createElement("iframe");
+    fr.src="crystal-kingdoms-v35.html?t="+Date.now();
+    fr.style.cssText="width:1280px;height:800px;position:absolute;left:-99999px;top:0;border:0";
+    document.body.appendChild(fr);
+    const bail=setTimeout(()=>rej(new Error("игра не загрузилась за 30 сек")),30000);
+    fr.onload=()=>setTimeout(()=>{
+      try{
+        clearTimeout(bail);
+        const d=fr.contentDocument;
+        const cv=d&&d.querySelector("canvas");
+        const title=d?d.title:"?";
+        if(cv)res("канвас есть, заголовок: "+title);
+        else rej(new Error("iframe загрузился, но канваса нет; заголовок: "+title+", тело: "+(d?d.body.innerText.slice(0,120):"?")));
+      }catch(e){clearTimeout(bail);rej(e);}
+    },5000);
+  }));
   document.getElementById("env").textContent="Браузер: "+navigator.userAgent+" · время: "+new Date().toISOString();
 })();
 window.addEventListener("error",e=>{const d=row("JS-ошибка");done(d,false,"JS-ошибка: "+e.message+" ("+(e.filename||"").split("/").pop()+":"+e.lineno+")");});
