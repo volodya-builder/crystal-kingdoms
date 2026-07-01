@@ -3,106 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Crystal Kingdoms — браузерная стратегия с $CRYSTAL</title>
-<!-- ИГРА = crystal-kingdoms-v35.html. ?b=N — анти-кэш: подними число при каждом деплое (кнопка «Играть» ниже). -->
-<style>
-:root{--bg:#070d1e;--card:#0d1730;--line:#1d2b4d;--ink:#eaf3ff;--muted:#8fa3c8;--gold:#ffce5c;--green:#5ce0a8;--red:#ff7a7a}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;background:radial-gradient(1200px 700px at 50% -10%,#122a52 0%,var(--bg) 55%);color:var(--ink);font-family:system-ui,Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:22px}
-.wrap{width:min(520px,100%);text-align:center}
-.logo{font-size:clamp(30px,7vw,44px);font-weight:800;letter-spacing:.5px;margin:0}
-.logo .d{color:var(--gold)}
-.tag{color:var(--muted);margin:8px 0 26px;font-size:15px}
-.play{display:block;width:100%;background:linear-gradient(180deg,#ffd97a,#f0b53f);color:#241a05;font-size:20px;font-weight:800;text-decoration:none;padding:16px;border-radius:14px;box-shadow:0 12px 34px rgba(240,181,63,.25);transition:.15s}
-.play:hover{filter:brightness(1.06)} .play:active{transform:translateY(1px)}
-.card{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:left}
-.card h2{font-size:16px;margin:0 0 4px}
-.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
-.btn{font:inherit;font-weight:700;border:0;border-radius:10px;padding:11px 16px;cursor:pointer;transition:.15s;width:100%}
-.btn:active{transform:translateY(1px)}
-.btn-violet{background:#7b6cff;color:#fff}.btn-violet:hover{filter:brightness(1.08)}
-.btn:disabled{opacity:.6;cursor:default}
-.rows{display:none;gap:8px;flex-direction:column;margin-top:10px}
-.row{display:flex;justify-content:space-between;align-items:center;background:#0a1226;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
-.row b{font-size:15px}.row .g{color:var(--green)}.row .gold{color:var(--gold)}
-.addr{font-family:Consolas,monospace;font-size:13px;color:var(--muted)}
-.err{color:var(--red);font-size:13px;margin-top:10px;display:none}
-.links{margin-top:16px;font-size:13px}
-.links a{color:var(--muted);text-decoration:none;margin:0 8px}
-.links a:hover{color:var(--gold)}
-.dn{display:inline-block;background:#2b2410;color:var(--gold);border:1px solid #4d3f1d;border-radius:8px;padding:4px 9px;font-size:12px;font-weight:700;margin-bottom:14px}
-</style>
+<title>Crystal Kingdoms</title>
+<!-- САЙТ = crystal-kingdoms-sait.html (лендинг, игра открывается с него поверх; iframe грузит игру с ?t=Date.now(), анти-кэш не нужен). -->
+<meta http-equiv="refresh" content="0; url=crystal-kingdoms-sait.html">
+<link rel="canonical" href="crystal-kingdoms-sait.html">
+<style>html,body{margin:0;height:100%;background:#050a18;color:#eaf3ff;font-family:system-ui,Segoe UI,Arial}
+.c{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+a{color:#ffce5c}</style>
 </head>
 <body>
-<div class="wrap">
-  <h1 class="logo">💠 Crystal <span class="d">Kingdoms</span></h1>
-  <p class="tag">Строй королевство · нападай на соседей · выводи Ruby в $CRYSTAL</p>
-  <span class="dn">⚠ токен на Solana Devnet (тестовая сеть)</span>
-
-  <a class="play" href="crystal-kingdoms-v35.html?b=14">▶ Играть</a>
-
-  <div class="card">
-    <h2>💎 Кошелёк</h2>
-    <p class="sub">Phantom · баланс $CRYSTAL читается прямо из блокчейна</p>
-    <button class="btn btn-violet" id="connBtn">Подключить Phantom</button>
-    <div class="rows" id="rows">
-      <div class="row"><span>Адрес</span><span class="addr" id="wAddr">—</span></div>
-      <div class="row"><span>SOL (devnet)</span><b class="g" id="wSol">—</b></div>
-      <div class="row"><span>$CRYSTAL</span><b class="gold" id="wCry">—</b></div>
-    </div>
-    <div class="err" id="wErr"></div>
-  </div>
-
-  <div class="links">
-    <a href="dev-wallet.html">Dev-кошелёк казны</a>·
-    <a href="https://explorer.solana.com/address/DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7?cluster=devnet" target="_blank" rel="noopener">Токен $CRYSTAL в Explorer</a>
-  </div>
+<div class="c">
+  <div>Загрузка Crystal Kingdoms…</div>
+  <div>Если не открылось — <a href="crystal-kingdoms-sait.html">нажми сюда</a></div>
 </div>
-
-<script type="module">
-"use strict";
-const MINT="DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7";
-const RPC="https://api.devnet.solana.com";
-const $=id=>document.getElementById(id);
-const err=m=>{const e=$("wErr");e.style.display=m?"block":"none";e.textContent=m||"";};
-let web3=null;
-async function impAny(urls){let last;for(const u of urls){try{return await import(u);}catch(e){last=e;}}throw last;}
-async function lazyWeb3(){ if(web3)return;
-  web3=await impAny(["https://esm.sh/@solana/web3.js@1.95.3","https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm"]); }
-const provider=()=>{const p=(window.phantom&&window.phantom.solana)||window.solana;return(p&&p.isPhantom)?p:null;};
-const short=s=>s.slice(0,4)+"…"+s.slice(-4);
-
-async function showBalances(pk){
-  const conn=new web3.Connection(RPC,"confirmed");
-  $("wAddr").textContent=short(pk.toString());
-  $("rows").style.display="flex";
-  $("connBtn").textContent="Подключено ✓"; $("connBtn").disabled=true;
-  try{
-    const lam=await conn.getBalance(pk);
-    $("wSol").textContent=(lam/1e9).toLocaleString("ru-RU",{maximumFractionDigits:4});
-  }catch(e){$("wSol").textContent="?";}
-  try{
-    const r=await conn.getParsedTokenAccountsByOwner(pk,{mint:new web3.PublicKey(MINT)});
-    const amt=r.value.reduce((s,a)=>s+(a.account.data.parsed.info.tokenAmount.uiAmount||0),0);
-    $("wCry").textContent=amt.toLocaleString("ru-RU");
-  }catch(e){$("wCry").textContent="?";}
-}
-
-async function connect(trustedOnly){
-  const p=provider();
-  if(!p){ if(!trustedOnly){err("Phantom не найден — установи расширение с phantom.app и обнови страницу.");window.open("https://phantom.app/","_blank");} return; }
-  try{
-    if(!trustedOnly){$("connBtn").textContent="Подключаю…";$("connBtn").disabled=true;}
-    await lazyWeb3();
-    const res=await p.connect(trustedOnly?{onlyIfTrusted:true}:undefined);
-    err(""); await showBalances(res.publicKey);
-  }catch(e){
-    $("connBtn").textContent="Подключить Phantom"; $("connBtn").disabled=false;
-    if(!trustedOnly)err("Не удалось подключить: "+((e&&e.message)||e));
-  }
-}
-$("connBtn").addEventListener("click",()=>connect(false));
-connect(true); // если сайт уже доверен в Phantom — подключаемся тихо и сразу показываем баланс
-</script>
+<script>location.replace("crystal-kingdoms-sait.html");</script>
 </body>
 </html>

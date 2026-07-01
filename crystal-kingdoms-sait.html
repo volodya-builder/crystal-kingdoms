@@ -185,7 +185,7 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
 <section class="hero">
   <div class="hero-bg"></div><div class="hero-scrim"></div><div id="flakes"></div>
   <div class="hero-inner">
-    <span class="chainpill"><span class="dotlive"></span> Сеть: EVM L2 · тестнет</span>
+    <span class="chainpill"><span class="dotlive"></span> Сеть: Solana · Devnet</span>
     <div class="logoimg hero-logo" role="img" aria-label="Crystal Kingdoms"></div>
     <p class="lead">Изометрическая стратегия: строй кристальное королевство, собирай героев и армию, и грабь базы соперников. В стиле Clash &amp; Mavia — с подключением криптокошелька.</p>
     <div class="hero-cta">
@@ -248,7 +248,7 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
   <div class="wrap">
     <div class="section-head reveal"><span class="eyebrow">Токеномика · концепт</span><h2>Токен $CRYSTAL</h2><p>Игровая валюта будущей экономики: зарабатывается в боях, тратится на ускорения и предметы. Распределение — концепт, токен ещё не выпущен.</p></div>
     <div class="tok reveal">
-      <div class="donut-wrap"><div class="donut"></div><div class="donut-c"><b>250M</b><span>$CRYSTAL</span></div></div>
+      <div class="donut-wrap"><div class="donut"></div><div class="donut-c"><b>100M</b><span>$CRYSTAL</span></div></div>
       <div>
         <div class="legend">
           <div class="li"><span class="sw" style="background:var(--gold)"></span> Игрокам (P2E)<span class="pct">35%</span></div>
@@ -261,7 +261,7 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
         <div class="tok-meta">
           <div class="stat"><b>—</b><span>Кошелёк</span><div class="mono" id="addrStat" style="font-size:12px;color:var(--crys);margin-top:3px">не подключён</div></div>
           <div class="stat" id="balStat"><b>—</b><span>Баланс сети</span></div>
-          <div class="stat"><b>Скоро</b><span>$CRYSTAL баланс</span></div>
+          <div class="stat" id="cryStat"><b>—</b><span>$CRYSTAL баланс</span></div>
         </div>
       </div>
     </div>
@@ -275,7 +275,7 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
     <div class="road">
       <div class="phase done reveal"><div class="n">ФАЗА 01</div><h3>Ядро игры</h3><ul><li>Изометрический движок</li><li>Штаб, экономика, бои</li><li>Воздух/земля, герой</li></ul></div>
       <div class="phase done reveal"><div class="n">ФАЗА 02</div><h3>Бренд и арт</h3><ul><li>Crystal Kingdoms</li><li>Текстуры и анимация</li><li>Этот сайт</li></ul></div>
-      <div class="phase reveal"><div class="n">ФАЗА 03</div><h3>Кошелёк и аккаунты</h3><ul><li>Connect Wallet</li><li>Сохранение прогресса</li><li>Таблица лидеров</li></ul></div>
+      <div class="phase done reveal"><div class="n">ФАЗА 03</div><h3>Кошелёк и аккаунты</h3><ul><li>Connect Wallet (Phantom)</li><li>Сохранение прогресса</li><li>Таблица лидеров</li></ul></div>
       <div class="phase reveal"><div class="n">ФАЗА 04</div><h3>Web3 на тестнете</h3><ul><li>Контракт $CRYSTAL (после аудита)</li><li>Предметы как NFT</li><li>Юридическая проверка</li></ul></div>
     </div>
   </div>
@@ -296,9 +296,9 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
   <div class="wrap">
     <div class="foot">
       <a href="#top" aria-label="Crystal Kingdoms"><span class="logoimg" style="width:113px;height:40px"></span></a>
-      <div class="foot-links"><a href="#play">Игра</a><a href="#heroes">Герои</a><a href="#token">Токен</a><a href="#road">Дорожная карта</a></div>
+      <div class="foot-links"><a href="#play">Игра</a><a href="#heroes">Герои</a><a href="#token">Токен</a><a href="#road">Дорожная карта</a><a href="dev-wallet.html">Dev-кошелёк</a><a href="https://explorer.solana.com/address/DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7?cluster=devnet" target="_blank" rel="noopener">$CRYSTAL в Explorer</a></div>
     </div>
-    <p class="disclaimer">⚠ $CRYSTAL — концепт-токен на стадии разработки, ещё не выпущен. Подключение кошелька — демонстрация будущей интеграции, работает только на чтение (адрес и баланс), без транзакций. Это не финансовый совет и не предложение инвестиций. Реальный выпуск токена потребует аудита смарт-контракта и юридической проверки в вашей юрисдикции.</p>
+    <p class="disclaimer">⚠ $CRYSTAL — тестовый токен, выпущенный в Solana <b>Devnet</b> (тестовая сеть): реальной цены не имеет, за деньги не покупается и не продаётся. Подключение кошелька показывает адрес и балансы; обмен Ruby ↔ $CRYSTAL доступен внутри игры. Это не финансовый совет и не предложение инвестиций. Запуск в основной сети потребует аудита смарт-контракта и юридической проверки в вашей юрисдикции.</p>
   </div>
 </footer>
 
@@ -315,27 +315,45 @@ function openGame(){var ov=document.getElementById("gameOverlay"),fr=document.ge
 function closeGame(){document.getElementById("gameOverlay").classList.remove("on");document.body.style.overflow="";}
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeGame();});
 
-var account=null;
-var CHAINS={"0x1":"Ethereum","0x89":"Polygon","0xa":"Optimism","0xa4b1":"Arbitrum","0x2105":"Base","0xaa36a7":"Sepolia","0x14a34":"Base Sepolia"};
-function short(a){return a.slice(0,6)+"…"+a.slice(-4);}
+/* Кошелёк: Solana / Phantom — реальный токен $CRYSTAL (devnet), баланс читается из блокчейна */
+var MINT="DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7";
+var SOL_RPC="https://api.devnet.solana.com";
+var account=null, w3=null;
+function short(a){return a.slice(0,4)+"…"+a.slice(-4);}
 function setBtns(t){["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.textContent=t;});}
+function phantom(){var p=(window.phantom&&window.phantom.solana)||window.solana;return(p&&p.isPhantom)?p:null;}
+async function libW3(){ if(w3)return w3;
+  var urls=["https://esm.sh/@solana/web3.js@1.95.3","https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm"];
+  for(var i=0;i<urls.length;i++){try{w3=await import(urls[i]);return w3;}catch(e){}}
+  throw new Error("не удалось загрузить solana-библиотеку (CDN недоступен)");}
 async function refreshWallet(){
-  var addrEl=document.getElementById("addrStat"),balEl=document.querySelector("#balStat b"),netEl=document.querySelector("#balStat span");
-  if(!account){setBtns("Кошелёк");if(addrEl)addrEl.textContent="не подключён";if(balEl)balEl.textContent="—";return;}
-  setBtns(short(account));if(addrEl)addrEl.textContent=short(account);
-  try{var bal=await window.ethereum.request({method:"eth_getBalance",params:[account,"latest"]});
-    var chain=await window.ethereum.request({method:"eth_chainId"});
-    if(balEl)balEl.textContent=(parseInt(bal,16)/1e18).toFixed(4);
-    if(netEl)netEl.textContent=CHAINS[chain]||("chain "+parseInt(chain,16));}catch(e){}
-}
-async function connectWallet(){
-  if(!window.ethereum){alert("Кошелёк не найден. Установи MetaMask, чтобы подключиться.");window.open("https://metamask.io/download/","_blank");return;}
-  try{var accs=await window.ethereum.request({method:"eth_requestAccounts"});account=accs&&accs[0]?accs[0]:null;await refreshWallet();
-    if(window.ethereum.on){window.ethereum.on("accountsChanged",function(a){account=(a&&a[0])||null;refreshWallet();});window.ethereum.on("chainChanged",function(){refreshWallet();});}
+  var addrEl=document.getElementById("addrStat"),balEl=document.querySelector("#balStat b"),netEl=document.querySelector("#balStat span"),cryEl=document.querySelector("#cryStat b");
+  if(!account){setBtns("Кошелёк");if(addrEl)addrEl.textContent="не подключён";if(balEl)balEl.textContent="—";if(cryEl)cryEl.textContent="—";return;}
+  var a=account.toString();
+  setBtns(short(a));if(addrEl)addrEl.textContent=short(a);
+  if(netEl)netEl.textContent="SOL · Devnet";
+  try{
+    var conn=new w3.Connection(SOL_RPC,"confirmed");
+    var lam=await conn.getBalance(account);
+    if(balEl)balEl.textContent=(lam/1e9).toFixed(3);
+    var r=await conn.getParsedTokenAccountsByOwner(account,{mint:new w3.PublicKey(MINT)});
+    var amt=r.value.reduce(function(s,x){return s+(x.account.data.parsed.info.tokenAmount.uiAmount||0);},0);
+    if(cryEl)cryEl.textContent=amt.toLocaleString("ru-RU");
   }catch(e){}
 }
-["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",connectWallet);});
-if(window.ethereum&&window.ethereum.request){window.ethereum.request({method:"eth_accounts"}).then(function(a){if(a&&a[0]){account=a[0];refreshWallet();}}).catch(function(){});}
+async function connectWallet(trustedOnly){
+  var p=phantom();
+  if(!p){ if(trustedOnly!==true){alert("Phantom не найден. Установи расширение с phantom.app и обнови страницу.");window.open("https://phantom.app/","_blank");} return; }
+  try{
+    if(trustedOnly!==true)setBtns("Подключаю…");
+    await libW3();
+    var res=await p.connect(trustedOnly===true?{onlyIfTrusted:true}:undefined);
+    account=res.publicKey; await refreshWallet();
+    if(p.on){p.on("accountChanged",function(pk){account=pk||null;refreshWallet();});}
+  }catch(e){ setBtns("Кошелёк"); if(trustedOnly!==true)alert("Не удалось подключить Phantom: "+((e&&e.message)||e)); }
+}
+["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",function(){connectWallet(false);});});
+connectWallet(true); // если сайт уже доверен в Phantom — тихо подключаемся и показываем балансы
 
 (function(){if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches)return;
   var host=document.getElementById("flakes");if(!host)return;
