@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev-кошелёк — Crystal Kingdoms (Devnet)</title>
+<style>
+:root{--bg:#070d1e;--card:#0d1730;--line:#1d2b4d;--ink:#eaf3ff;--muted:#8fa3c8;--gold:#ffce5c;--green:#5ce0a8;--red:#ff7a7a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:min(560px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 18px}
+.devnet{display:inline-block;background:#2b2410;color:var(--gold);border:1px solid #4d3f1d;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:700;margin-bottom:16px}
+.addr-box{background:#0a1226;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.addr{font-family:Consolas,monospace;font-size:13.5px;word-break:break-all;flex:1;min-width:200px}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;transition:.15s}
+button:active{transform:translateY(1px)}
+.btn-gold{background:var(--gold);color:#241a05}
+.btn-gold:hover{filter:brightness(1.08)}
+.btn-ghost{background:#16224400;color:var(--ink);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold)}
+.row{display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.qr-wrap{display:flex;gap:18px;align-items:center;margin-top:18px;flex-wrap:wrap}
+#qr{background:#eaf3ff;border-radius:10px;padding:8px;width:170px;height:170px}
+.bal{font-size:15px}
+.bal b{color:var(--green);font-size:18px}
+.send{margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+.send h2{font-size:16px;margin:0 0 10px}
+input[type=number]{font:inherit;background:#0a1226;border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:10px 12px;width:130px}
+input[type=number]:focus{outline:2px solid var(--gold);border-color:transparent}
+.status{margin-top:12px;font-size:14px;min-height:20px}
+.status.ok{color:var(--green)} .status.err{color:var(--red)} .status a{color:var(--gold)}
+.hint{color:var(--muted);font-size:13px;margin-top:14px;line-height:1.5}
+.hint a{color:var(--gold)}
+.back{display:inline-block;margin-top:18px;color:var(--muted);font-size:13px;text-decoration:none}
+.back:hover{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>💎 Dev-кошелёк Crystal Kingdoms</h1>
+  <p class="sub">Казна игры для теста моста Ruby ↔ $CRYSTAL</p>
+  <span class="devnet">⚠ DEVNET — тестовая сеть, реальные деньги сюда не отправляются</span>
+
+  <div class="addr-box">
+    <span class="addr" id="addr">8B9Q3jMWSKa66zb8msGrCL8SiX9nq65z1rrb1ai94oPf</span>
+    <button class="btn-gold" id="copyBtn">Копировать</button>
+  </div>
+
+  <div class="qr-wrap">
+    <canvas id="qr" width="170" height="170"></canvas>
+    <div>
+      <div class="bal">Баланс казны: <b id="bal">…</b></div>
+      <div class="row">
+        <button class="btn-ghost" id="refreshBtn">Обновить баланс</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="send">
+    <h2>Отправить SOL через Phantom</h2>
+    <div class="row">
+      <input type="number" id="amount" value="0.5" min="0.001" step="0.1"> <span>SOL</span>
+      <button class="btn-gold" id="sendBtn">Отправить</button>
+    </div>
+    <div class="status" id="status"></div>
+    <p class="hint">
+      Нужны тестовые SOL? Получи бесплатно на <a href="https://faucet.solana.com" target="_blank" rel="noopener">faucet.solana.com</a> (вставь туда адрес своего Phantom).<br>
+      Чтобы видеть devnet-баланс в Phantom: Настройки → Developer Settings → включи <b>Testnet Mode</b>.
+    </p>
+  </div>
+
+  <a class="back" href="index.html">← в игру Crystal Kingdoms</a>
+</div>
+
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+"use strict";
+const DEV="8B9Q3jMWSKa66zb8msGrCL8SiX9nq65z1rrb1ai94oPf";
+const RPC="https://api.devnet.solana.com";
+const $=id=>document.getElementById(id);
+const status=(msg,cls)=>{const s=$("status");s.className="status "+(cls||"");s.innerHTML=msg;};
+
+// QR: Solana Pay ссылка на адрес казны
+try{QRCode.toCanvas($("qr"),"solana:"+DEV,{width:170,margin:1,color:{dark:"#0b1430",light:"#eaf3ff"}});}catch(e){}
+
+// Копирование адреса
+$("copyBtn").addEventListener("click",async()=>{
+  try{await navigator.clipboard.writeText(DEV);$("copyBtn").textContent="Скопировано ✓";}
+  catch(e){const r=document.createRange();r.selectNode($("addr"));getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand("copy");$("copyBtn").textContent="Скопировано ✓";}
+  setTimeout(()=>$("copyBtn").textContent="Копировать",1600);
+});
+
+// Баланс казны (devnet)
+async function refreshBal(){
+  $("bal").textContent="…";
+  try{
+    const conn=new solanaWeb3.Connection(RPC,"confirmed");
+    const lam=await conn.getBalance(new solanaWeb3.PublicKey(DEV));
+    $("bal").textContent=(lam/1e9).toLocaleString("ru-RU",{maximumFractionDigits:4})+" SOL";
+  }catch(e){$("bal").textContent="нет связи с RPC";}
+}
+$("refreshBtn").addEventListener("click",refreshBal);
+refreshBal();
+
+// Отправка через Phantom: подписываем у Phantom, шлём сами в devnet —
+// так работает даже если Phantom не переключён на devnet
+$("sendBtn").addEventListener("click",async()=>{
+  const provider=(window.phantom&&window.phantom.solana)||window.solana;
+  if(!provider||!provider.isPhantom){status('Phantom не найден — установи расширение с <a href="https://phantom.app" target="_blank" rel="noopener">phantom.app</a>',"err");return;}
+  const amt=parseFloat($("amount").value);
+  if(!(amt>0)){status("Введи сумму больше нуля","err");return;}
+  try{
+    status("Подключаю Phantom…");
+    const resp=await provider.connect();
+    const from=resp.publicKey;
+    const conn=new solanaWeb3.Connection(RPC,"confirmed");
+    status("Готовлю транзакцию…");
+    const tx=new solanaWeb3.Transaction().add(solanaWeb3.SystemProgram.transfer({
+      fromPubkey:from,toPubkey:new solanaWeb3.PublicKey(DEV),lamports:Math.round(amt*1e9)
+    }));
+    tx.feePayer=from;
+    tx.recentBlockhash=(await conn.getLatestBlockhash()).blockhash;
+    status("Подтверди в Phantom…");
+    const signed=await provider.signTransaction(tx);
+    const sig=await conn.sendRawTransaction(signed.serialize());
+    status("Отправлено, жду подтверждения сети…");
+    await conn.confirmTransaction(sig,"confirmed");
+    status('✅ Готово! <a href="https://explorer.solana.com/tx/'+sig+'?cluster=devnet" target="_blank" rel="noopener">Транзакция в Explorer</a>',"ok");
+    refreshBal();
+  }catch(e){
+    const m=(e&&e.message)||String(e);
+    status(/reject|declin|cancel/i.test(m)?"Отменено в Phantom":"Ошибка: "+m,"err");
+  }
+});
+</script>
+</body>
+</html>
