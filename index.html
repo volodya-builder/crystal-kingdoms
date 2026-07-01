@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Crystal Kingdoms</title>
-<!-- САЙТ = crystal-kingdoms-sait.html (лендинг, игра открывается с него поверх; iframe грузит игру с ?t=Date.now(), анти-кэш не нужен). -->
-<meta http-equiv="refresh" content="0; url=crystal-kingdoms-sait.html">
+<!-- САЙТ = crystal-kingdoms-sait.html. ?v=N — анти-кэш сайта: подними число при каждом изменении sait.html.
+     Игра открывается с сайта поверх (iframe с ?t=Date.now(), свой анти-кэш не нужен). -->
+<meta http-equiv="refresh" content="0; url=crystal-kingdoms-sait.html?v=2">
 <link rel="canonical" href="crystal-kingdoms-sait.html">
 <style>html,body{margin:0;height:100%;background:#050a18;color:#eaf3ff;font-family:system-ui,Segoe UI,Arial}
 .c{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
@@ -14,8 +15,8 @@ a{color:#ffce5c}</style>
 <body>
 <div class="c">
   <div>Загрузка Crystal Kingdoms…</div>
-  <div>Если не открылось — <a href="crystal-kingdoms-sait.html">нажми сюда</a></div>
+  <div>Если не открылось — <a href="crystal-kingdoms-sait.html?v=2">нажми сюда</a></div>
 </div>
-<script>location.replace("crystal-kingdoms-sait.html");</script>
+<script>location.replace("crystal-kingdoms-sait.html?v=2");</script>
 </body>
 </html>
