@@ -331,7 +331,7 @@ var SOL_RPC="https://api.devnet.solana.com";
 var account=null, w3=null;
 function short(a){return a.slice(0,4)+"…"+a.slice(-4);}
 function setBtns(t){["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.textContent=t;});}
-function phantom(){var p=(window.phantom&&window.phantom.solana)||window.solana;return(p&&p.isPhantom)?p:null;}
+function getPhantom(){var p=(window.phantom&&window.phantom.solana)||window.solana;return(p&&p.isPhantom)?p:null;}
 async function libW3(){ if(w3)return w3;
   var urls=["https://esm.sh/@solana/web3.js@1.95.3","https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm"];
   for(var i=0;i<urls.length;i++){try{w3=await import(urls[i]);return w3;}catch(e){}}
