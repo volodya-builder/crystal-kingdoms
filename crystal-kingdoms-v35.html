@@ -2474,7 +2474,8 @@ function render(){
     (connected
       ? '<div class="wp-bal"><b>'+bal.toLocaleString()+'</b><small>$CRYSTAL · '+short(pubkey.toString())+'</small></div>'+
         '<div class="wp-sub">Ruby → $CRYSTAL (вывод)</div><div class="wp-row"><input id="wpW" type="number" min="1" placeholder="сколько Ruby"><button class="wp-btn" id="wpWbtn">Вывести</button></div>'+
-        '<div class="wp-sub">$CRYSTAL → Ruby (ввод)</div><div class="wp-row"><input id="wpD" type="number" min="1" placeholder="сколько $CRYSTAL"><button class="wp-btn g" id="wpDbtn">Ввести</button></div>'
+        '<div class="wp-sub">$CRYSTAL → Ruby (ввод)</div><div class="wp-row"><input id="wpD" type="number" min="1" placeholder="сколько $CRYSTAL"><button class="wp-btn g" id="wpDbtn">Ввести</button></div>'+
+        '<button class="wp-btn" id="wpDis" style="width:100%;margin-top:8px">⏏ Отключить кошелёк</button>'
       : '<div class="wp-sub">Подключи кошелёк Phantom (переключи его на Devnet)</div><button class="wp-btn" id="wpConn" style="width:100%">Подключить Phantom</button>')+
     '<button class="wp-x" id="wpClose">Закрыть</button>'+
     '<div class="wp-note">Курс 1 Ruby = 1 $CRYSTAL. Нужен запущенный bridge-server.js.</div></div>';
@@ -2482,6 +2483,9 @@ function render(){
   if(connected){
     document.getElementById("wpWbtn").onclick=()=>{const v=+document.getElementById("wpW").value;if(v>0)withdraw(v);};
     document.getElementById("wpDbtn").onclick=()=>{const v=+document.getElementById("wpD").value;if(v>0)deposit(v);};
+    document.getElementById("wpDis").onclick=async()=>{ // отключение по желанию; подключить заново — той же кнопкой
+      try{const p=provider(); if(p&&p.disconnect)await p.disconnect();}catch(e){}
+      pubkey=null; bal=0; lbl.textContent="Кошелёк"; btn.classList.remove("on"); render(); };
   } else { document.getElementById("wpConn").onclick=connect; }
 }
 btn.onclick=()=>{ render(); panel.classList.add("show"); if(pubkey)refresh(); };

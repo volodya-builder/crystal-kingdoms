@@ -109,7 +109,7 @@ header{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rg
 /* tokenomics */
 .tok{display:grid;grid-template-columns:340px 1fr;gap:40px;align-items:center}
 .donut-wrap{display:grid;place-items:center;position:relative}
-.donut{width:280px;height:280px;border-radius:50%;background:conic-gradient(var(--gold) 0 35%,var(--crys) 35% 60%,#7b6cff 60% 75%,#5ce0a8 75% 87%,#ff8b5c 87% 95%,#56708f 95% 100%);
+.donut{width:280px;height:280px;border-radius:50%;background:conic-gradient(var(--gold) 0 40%,var(--crys) 40% 70%,#7b6cff 70% 85%,#5ce0a8 85% 90%,#ff8b5c 90% 95%,#56708f 95% 100%);
   -webkit-mask:radial-gradient(circle,transparent 56%,#000 57%);mask:radial-gradient(circle,transparent 56%,#000 57%);box-shadow:0 0 50px rgba(84,182,255,.14)}
 .donut-c{position:absolute;text-align:center}
 .donut-c b{font-family:"Oswald";font-size:32px;display:block;line-height:1;color:var(--frost)}
@@ -196,7 +196,7 @@ window.addEventListener("error",function(e){try{
   <div class="hero-inner">
     <span class="chainpill"><span class="dotlive"></span> Сеть: Solana · Devnet</span>
     <div class="logoimg hero-logo" role="img" aria-label="Crystal Kingdoms"></div>
-    <p class="lead">Изометрическая стратегия: строй кристальное королевство, собирай героев и армию, и грабь базы соперников. В стиле Clash &amp; Mavia — с подключением криптокошелька.</p>
+    <p class="lead">Изометрическая стратегия: строй кристальное королевство, собирай героев и армию, и грабь базы соперников. В стиле Clash of Clans — с подключением криптокошелька.</p>
     <div class="hero-cta">
       <button class="btn btn-gold" onclick="openGame()">▶ Играть в браузере</button>
       <button class="btn btn-ghost" id="connectBtn2">Подключить кошелёк</button>
@@ -260,12 +260,12 @@ window.addEventListener("error",function(e){try{
       <div class="donut-wrap"><div class="donut"></div><div class="donut-c"><b>100M</b><span>$CRYSTAL</span></div></div>
       <div>
         <div class="legend">
-          <div class="li"><span class="sw" style="background:var(--gold)"></span> Игрокам (P2E)<span class="pct">35%</span></div>
-          <div class="li"><span class="sw" style="background:var(--crys)"></span> Экосистема<span class="pct">25%</span></div>
-          <div class="li"><span class="sw" style="background:#7b6cff"></span> Команда (вестинг)<span class="pct">15%</span></div>
-          <div class="li"><span class="sw" style="background:#5ce0a8"></span> Ликвидность<span class="pct">12%</span></div>
-          <div class="li"><span class="sw" style="background:#ff8b5c"></span> Маркетинг<span class="pct">8%</span></div>
-          <div class="li"><span class="sw" style="background:#56708f"></span> Резерв<span class="pct">5%</span></div>
+          <div class="li"><span class="sw" style="background:var(--gold)"></span> Игровой процесс (P2E)<span class="pct">40%</span></div>
+          <div class="li"><span class="sw" style="background:var(--crys)"></span> Пул ликвидности<span class="pct">30%</span></div>
+          <div class="li"><span class="sw" style="background:#7b6cff"></span> Команда · линейный разлок 1 год<span class="pct">15%</span></div>
+          <div class="li"><span class="sw" style="background:#5ce0a8"></span> Команда · разлок сразу<span class="pct">5%</span></div>
+          <div class="li"><span class="sw" style="background:#ff8b5c"></span> Ansem — топ-коллер Solana<span class="pct">5%</span></div>
+          <div class="li"><span class="sw" style="background:#56708f"></span> Создатель Solana (toly)<span class="pct">5%</span></div>
         </div>
         <div class="tok-meta">
           <div class="stat"><b>—</b><span>Кошелёк</span><div class="mono" id="addrStat" style="font-size:12px;color:var(--crys);margin-top:3px">не подключён</div></div>
@@ -330,7 +330,7 @@ var MINT="DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7";
 var SOL_RPC="https://api.devnet.solana.com";
 var account=null, w3=null;
 function short(a){return a.slice(0,4)+"…"+a.slice(-4);}
-function setBtns(t){["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.textContent=t;});}
+function setBtns(t,tip){["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b){b.textContent=t;if(tip)b.title=tip;}});}
 function getPhantom(){var p=(window.phantom&&window.phantom.solana)||window.solana;return(p&&p.isPhantom)?p:null;}
 async function libW3(){ if(w3)return w3;
   var urls=["https://esm.sh/@solana/web3.js@1.95.3","https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm"];
@@ -338,9 +338,9 @@ async function libW3(){ if(w3)return w3;
   throw new Error("не удалось загрузить solana-библиотеку (CDN недоступен)");}
 async function refreshWallet(){
   var addrEl=document.getElementById("addrStat"),balEl=document.querySelector("#balStat b"),netEl=document.querySelector("#balStat span"),cryEl=document.querySelector("#cryStat b");
-  if(!account){setBtns("Кошелёк");if(addrEl)addrEl.textContent="не подключён";if(balEl)balEl.textContent="—";if(cryEl)cryEl.textContent="—";return;}
+  if(!account){setBtns("Кошелёк","Подключить Phantom");if(addrEl)addrEl.textContent="не подключён";if(balEl)balEl.textContent="—";if(cryEl)cryEl.textContent="—";return;}
   var a=account.toString();
-  setBtns(short(a));if(addrEl)addrEl.textContent=short(a);
+  setBtns(short(a),"Нажми, чтобы отключить кошелёк");if(addrEl)addrEl.textContent=short(a);
   if(netEl)netEl.textContent="SOL · Devnet";
   try{
     var conn=new w3.Connection(SOL_RPC,"confirmed");
@@ -358,12 +358,18 @@ async function connectWallet(trustedOnly){
     if(trustedOnly!==true)setBtns("Подключаю…");
     await libW3();
     var res=await p.connect(trustedOnly===true?{onlyIfTrusted:true}:undefined);
-    account=res.publicKey; await refreshWallet();
+    account=res.publicKey; try{localStorage.removeItem("ck_wallet_off");}catch(_e){} await refreshWallet();
     if(p.on){p.on("accountChanged",function(pk){account=pk||null;refreshWallet();});}
   }catch(e){ setBtns("Кошелёк"); if(trustedOnly!==true)alert("Не удалось подключить Phantom: "+((e&&e.message)||e)); }
 }
-["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",function(){connectWallet(false);});});
-connectWallet(true); // если сайт уже доверен в Phantom — тихо подключаемся и показываем балансы
+async function disconnectWallet(){
+  try{var p=getPhantom(); if(p&&p.disconnect)await p.disconnect();}catch(e){}
+  account=null; try{localStorage.setItem("ck_wallet_off","1");}catch(e){}
+  refreshWallet();
+}
+["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",function(){ if(account)disconnectWallet(); else connectWallet(false); });});
+var _off=false; try{_off=localStorage.getItem("ck_wallet_off")==="1";}catch(e){}
+if(!_off)connectWallet(true); // тихое переподключение — только если игрок сам не отключал кошелёк
 })();
 
 (function(){if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches)return;
