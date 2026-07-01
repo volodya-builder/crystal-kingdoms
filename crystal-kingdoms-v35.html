@@ -2427,13 +2427,26 @@ const CFG = {
 const btn=document.getElementById("walletBtn"), lbl=document.getElementById("walletLbl"), panel=document.getElementById("walletPanel");
 const configured = !CFG.MINT.startsWith("ВСТАВЬ");
 let web3=null, spl=null, conn=null, pubkey=null, bal=0;
+// импорт с запасными CDN — esm.sh бывает недоступен, тогда берём jsdelivr
+async function impAny(urls){let last;for(const u of urls){try{return await import(u);}catch(e){last=e;}}throw last;}
 async function lazyLibs(){ if(web3)return;
-  web3=await import("https://esm.sh/@solana/web3.js@1.95.3");
-  spl =await import("https://esm.sh/@solana/spl-token@0.4.8");
-  conn=new web3.Connection(web3.clusterApiUrl("devnet"),"confirmed"); }
-function provider(){const p=window.phantom?.solana||window.solana; return (p&&p.isPhantom)?p:null; }
-async function connect(){ const p=provider(); if(!p){window.open("https://phantom.app/","_blank");return;}
-  await lazyLibs(); const res=await p.connect(); pubkey=res.publicKey; lbl.textContent=short(pubkey.toString()); btn.classList.add("on"); await refresh(); }
+  web3=await impAny(["https://esm.sh/@solana/web3.js@1.95.3","https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm"]);
+  spl =await impAny(["https://esm.sh/@solana/spl-token@0.4.8","https://cdn.jsdelivr.net/npm/@solana/spl-token@0.4.8/+esm"]);
+  conn=new web3.Connection("https://api.devnet.solana.com","confirmed"); }
+function provider(){const p=(window.phantom&&window.phantom.solana)||window.solana; return (p&&p.isPhantom)?p:null; }
+async function connect(){
+  const p=provider();
+  if(!p){alert("Phantom не найден. Установи расширение с phantom.app и обнови страницу (Ctrl+Shift+R)."); window.open("https://phantom.app/","_blank"); return;}
+  const cbtn=document.getElementById("wpConn"); if(cbtn){cbtn.textContent="Подключаю…"; cbtn.disabled=true;}
+  try{
+    await lazyLibs();
+    const res=await p.connect();
+    pubkey=res.publicKey; lbl.textContent=short(pubkey.toString()); btn.classList.add("on"); await refresh();
+  }catch(e){
+    if(cbtn){cbtn.textContent="Подключить Phantom"; cbtn.disabled=false;}
+    alert("Не удалось подключить Phantom: "+((e&&e.message)||e));
+  }
+}
 function short(s){return s.slice(0,4)+"…"+s.slice(-4);}
 async function refresh(){ if(!pubkey)return; try{ const r=await fetch(CFG.BRIDGE+"/balance/"+pubkey.toString()).then(r=>r.json()); bal=r.amount||0; }catch(e){ bal=0; } render(); }
 async function deposit(amount){ // $CRYSTAL → Ruby
