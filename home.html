@@ -166,9 +166,18 @@ footer{border-top:1px solid var(--line);padding:42px 0 60px;margin-top:30px}
   .card.span2{grid-column:span 1;grid-template-columns:1fr}.playband{padding:30px 20px}.band{padding:40px 22px}
 }
 </style>
+<script>
+/* чёрный ящик: любая JS-ошибка страницы показывается красной полосой сверху (для диагностики без F12) */
+window.addEventListener("error",function(e){try{
+  var b=document.getElementById("__errbar");
+  if(!b){b=document.createElement("div");b.id="__errbar";b.style.cssText="position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:#fff;font:13px/1.5 Consolas,monospace;padding:8px 14px;word-break:break-all";document.body?document.body.appendChild(b):document.addEventListener("DOMContentLoaded",function(){document.body.appendChild(b);});}
+  b.textContent="⚠ JS-ошибка: "+e.message+" @ "+String(e.filename||"").split("/").pop()+":"+e.lineno;
+}catch(_){}});
+</script>
 </head>
 <body>
 <div class="bgsky"></div><div class="aurora"></div>
+<div style="position:fixed;left:8px;bottom:8px;z-index:9998;font:11px Consolas,monospace;color:#8fa3c8;opacity:.75;pointer-events:none">сайт v4</div>
 
 <header>
   <div class="wrap nav">

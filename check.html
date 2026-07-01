@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Диагностика — Crystal Kingdoms</title>
+<style>
+body{margin:0;background:#070d1e;color:#eaf3ff;font-family:Consolas,monospace;padding:20px;font-size:15px;line-height:1.7}
+h1{font-size:20px;font-family:system-ui;margin:0 0 4px}
+.sub{color:#8fa3c8;font-size:13px;margin-bottom:18px}
+.t{padding:8px 12px;border-radius:8px;margin:6px 0;background:#0d1730;border:1px solid #1d2b4d;word-break:break-all}
+.ok{border-color:#2c6}.ok b{color:#5ce0a8}
+.bad{border-color:#c44}.bad b{color:#ff7a7a}
+.wait b{color:#ffce5c}
+#env{color:#8aa6cf;font-size:12px;margin-top:16px;word-break:break-all}
+</style>
+</head>
+<body>
+<h1>🩺 Диагностика Crystal Kingdoms</h1>
+<div class="sub">страница v1 · сделай скриншот ЦЕЛИКОМ, когда всё прогрузится (5–10 сек)</div>
+<div id="out"></div>
+<div id="env"></div>
+<script>
+"use strict";
+const out=document.getElementById("out");
+const row=(name)=>{const d=document.createElement("div");d.className="t wait";d.innerHTML="<b>⏳</b> "+name;out.appendChild(d);return d;};
+const done=(d,ok,msg)=>{d.className="t "+(ok?"ok":"bad");d.innerHTML="<b>"+(ok?"✅":"❌")+"</b> "+msg;};
+async function test(name,fn){const d=row(name);try{const m=await fn();done(d,true,name+" — "+m);}catch(e){done(d,false,name+" — "+((e&&e.message)||e));}}
+(async()=>{
+  await test("Этот адрес",async()=>location.href);
+  await test("Сайт home.html свежий?",async()=>{
+    const r=await fetch("home.html?d="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const t=await r.text();
+    const fresh=t.indexOf("SOL · Devnet")>=0, size=t.length;
+    if(!fresh)throw new Error("получена СТАРАЯ версия! размер "+size);
+    return "новая версия (Phantom-кошелёк), размер "+size;
+  });
+  await test("Файл игры crystal-kingdoms-v35.html",async()=>{
+    const r=await fetch("crystal-kingdoms-v35.html?d="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status+" — вот откуда 404 на «Играть»!");
+    const t=await r.text();
+    return "HTTP 200, размер "+t.length;
+  });
+  await test("Solana RPC (devnet)",async()=>{
+    const r=await fetch("https://api.devnet.solana.com",{method:"POST",headers:{"Content-Type":"application/json"},body:'{"jsonrpc":"2.0","id":1,"method":"getHealth"}'});
+    const j=await r.json();return "ответ: "+JSON.stringify(j.result||j.error);
+  });
+  await test("CDN esm.sh (библиотека кошелька)",async()=>{
+    const r=await fetch("https://esm.sh/@solana/web3.js@1.95.3",{method:"GET"});
+    if(!r.ok)throw new Error("HTTP "+r.status);return "HTTP "+r.status;
+  });
+  await test("CDN jsdelivr (запасной)",async()=>{
+    const r=await fetch("https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/package.json");
+    if(!r.ok)throw new Error("HTTP "+r.status);return "HTTP "+r.status;
+  });
+  await test("Расширение Phantom",async()=>{
+    const p=(window.phantom&&window.phantom.solana)||window.solana;
+    if(!(p&&p.isPhantom))throw new Error("НЕ обнаружено в этом браузере/профиле");
+    return "обнаружено";
+  });
+  await test("Загрузка solana-библиотеки",async()=>{
+    try{await import("https://esm.sh/@solana/web3.js@1.95.3");return "esm.sh ок";}
+    catch(e){await import("https://cdn.jsdelivr.net/npm/@solana/web3.js@1.95.3/+esm");return "esm.sh не смог, jsdelivr ок";}
+  });
+  document.getElementById("env").textContent="Браузер: "+navigator.userAgent+" · время: "+new Date().toISOString();
+})();
+window.addEventListener("error",e=>{const d=row("JS-ошибка");done(d,false,"JS-ошибка: "+e.message+" ("+(e.filename||"").split("/").pop()+":"+e.lineno+")");});
+</script>
+</body>
+</html>
