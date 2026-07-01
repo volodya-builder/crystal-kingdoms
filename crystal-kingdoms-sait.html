@@ -315,7 +315,8 @@ function openGame(){var ov=document.getElementById("gameOverlay"),fr=document.ge
 function closeGame(){document.getElementById("gameOverlay").classList.remove("on");document.body.style.overflow="";}
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeGame();});
 
-/* Кошелёк: Solana / Phantom — реальный токен $CRYSTAL (devnet), баланс читается из блокчейна */
+/* Кошелёк: Solana / Phantom — реальный токен $CRYSTAL (devnet). Весь код в IIFE: расширение Phantom вживляет неизменяемый window.phantom, и глобальная function getPhantom() ломала весь скрипт страницы. */
+(function(){
 var MINT="DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7";
 var SOL_RPC="https://api.devnet.solana.com";
 var account=null, w3=null;
@@ -342,7 +343,7 @@ async function refreshWallet(){
   }catch(e){}
 }
 async function connectWallet(trustedOnly){
-  var p=phantom();
+  var p=getPhantom();
   if(!p){ if(trustedOnly!==true){alert("Phantom не найден. Установи расширение с phantom.app и обнови страницу.");window.open("https://phantom.app/","_blank");} return; }
   try{
     if(trustedOnly!==true)setBtns("Подключаю…");
@@ -354,6 +355,7 @@ async function connectWallet(trustedOnly){
 }
 ["connectBtn","connectBtn2","connectBtn3"].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener("click",function(){connectWallet(false);});});
 connectWallet(true); // если сайт уже доверен в Phantom — тихо подключаемся и показываем балансы
+})();
 
 (function(){if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion:reduce)").matches)return;
   var host=document.getElementById("flakes");if(!host)return;
