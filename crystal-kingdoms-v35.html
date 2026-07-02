@@ -2517,7 +2517,7 @@ function tr(t){
   var v=D[k];
   if(v==null){for(var i=0;i<RX.length;i++){var m=k.match(RX[i][0]);
     if(m){v=RX[i][1];for(var j=1;j<m.length;j++)v=v.split("$"+j).join(m[j]==null?"":m[j]);break;}}}
-  if(v==null&&/^⏳? ?d[d смчд]*$/.test(k))return t.replace(/с/g,"s").replace(/м/g,"m").replace(/ч/g,"h").replace(/д/g,"d");
+  if(v==null&&/^⏳? ?\d[\d смчд]*$/.test(k))return t.replace(/с/g,"s").replace(/м/g,"m").replace(/ч/g,"h").replace(/д/g,"d");
   if(v==null)return null;
   var p=t.indexOf(k); return p>=0?t.slice(0,p)+v+t.slice(p+k.length):v;
 }
