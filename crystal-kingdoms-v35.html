@@ -349,6 +349,7 @@
       </div>
       <div id="overlay"><div class="dialog" id="dialog"></div></div>
       <button id="catOpen">🏗 Построить</button>
+<div id="spellBar" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:44;gap:10px"></div>
       <button id="visitOpen">🏝 Гости</button>
       <button id="questOpen">🎁 Задания<span class="qdot"></span></button>
       <div id="visitBar"><span>🏝 В гостях у <b id="visitName">—</b></span><button class="btn" id="visitHome">🏠 Домой</button></div>
@@ -1391,6 +1392,16 @@ function render(){
     for(const e of ents){if(e.k==="b")drawBuilding(e.o);else if(e.k==="d")drawObstacle(e.o);else drawUnit(e.o);}
     for(const sh of war.shots){const[x1,y1]=iso(sh.x1,sh.y1),[x2,y2]=iso(sh.x2,sh.y2-(sh.air?14*ZOOM/ZOOM:0));
       ctx.strokeStyle=sh.col;ctx.lineWidth=2.2*ZOOM;ctx.beginPath();ctx.moveTo(x1,y1-(sh.fromAir?14*ZOOM:0));ctx.lineTo(x2,y2);ctx.stroke();}
+    for(const z of (war.zones||[])){const zp=iso(z.gx,z.gy),zx=zp[0],zy=zp[1];
+      if(z.kind==="heal"){const rr=z.r*TW/2*ZOOM;ctx.strokeStyle="rgba(92,224,168,"+(0.4+0.25*Math.sin(ANIM*6))+")";ctx.lineWidth=2.5*ZOOM;ctx.beginPath();ctx.arc(zx,zy,rr,0,7);ctx.stroke();
+        if(Math.random()<0.35)burst(zx+(Math.random()-0.5)*rr*1.4,zy+(Math.random()-0.5)*rr*0.7,1,"rgba(120,255,190,.9)",{spd:12,life:0.8,up:38,size:2,grav:-25});}
+      else if(z.kind==="rage"){const rr=z.r*TW/2*ZOOM;ctx.strokeStyle="rgba(220,120,255,"+(0.4+0.25*Math.sin(ANIM*7))+")";ctx.lineWidth=2.5*ZOOM;ctx.beginPath();ctx.arc(zx,zy,rr,0,7);ctx.stroke();
+        if(Math.random()<0.3)burst(zx+(Math.random()-0.5)*rr*1.4,zy+(Math.random()-0.5)*rr*0.7,1,"rgba(235,140,255,.9)",{spd:14,life:0.6,up:30,size:2,grav:-20});}
+      else if(z.kind==="bolt"){const a=Math.max(0,z.t/0.5);ctx.save();ctx.globalCompositeOperation="lighter";
+        ctx.strokeStyle="rgba(190,230,255,"+a+")";ctx.lineWidth=3*ZOOM;ctx.beginPath();
+        ctx.moveTo(zx,zy-170*ZOOM);
+        for(let i=1;i<=5;i++){ctx.lineTo(zx+((i%2?1:-1)*(6-i)*3)*ZOOM,zy-170*ZOOM+170*ZOOM*i/5);}
+        ctx.stroke();ctx.restore();}}
     for(const bl of war.blasts){const[x,y]=iso(bl.x,bl.y);const rr=bl.r*TW/2*ZOOM;if(bl.fire){const g=ctx.createRadialGradient(x,y,0,x,y,rr);g.addColorStop(0,"rgba(255,220,120,"+(bl.life*0.6)+")");g.addColorStop(0.6,"rgba(255,120,40,"+(bl.life*0.45)+")");g.addColorStop(1,"rgba(200,40,20,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.fill();}else{ctx.strokeStyle="rgba(255,160,90,"+bl.life+")";ctx.lineWidth=3*ZOOM;ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.stroke();}}
     if(!war.over){ctx.strokeStyle="rgba(92,224,168,.5)";ctx.lineWidth=1.5;ctx.setLineDash([6,5]);
       const c=[[0,0],[GRID,0],[GRID,GRID],[0,GRID]].map(p=>iso(p[0],p[1]));
@@ -1731,9 +1742,11 @@ function startWarFrom(c){
   const hasHero=S.hero&&Date.now()>=(S.hero.readyAt||0);
   war={enemy:c.list,deco:c.deco||[],lvl:c.lvl,loot:c.loot,reserve:Object.assign({},S.army),
     heroAvail:hasHero,heroUsed:false,units:[],shots:[],blasts:[],over:false,
+    zones:[],activeSpell:null,cryUsed:false,
+    spells:{lightning:{n:S.hqLevel>=3?2:0},heal:{n:S.hqLevel>=4?2:0},rage:{n:S.hqLevel>=5?1:0}},
     start:c.list.length,lootedIce:0,lootedStone:0,lootedGem:0,wallVer:0,
     trophyWin:c.trophyWin,styleName:c.styleName,oppName:c.name,pvp:!!c.pvp,oppId:c.oppId||null};
-  scout=null;pvpList=null;sel=null;buildSel=null;refreshTop();renderSide();updHelp();
+  scout=null;pvpList=null;sel=null;buildSel=null;refreshTop();renderSide();updHelp();updSpellBar();
 }
 function beginRaid(i){const c=scout&&scout[i];if(!c)return;startWarFrom(c);}
 // PvP: список реальных игроков и атака на их базу
@@ -1747,12 +1760,72 @@ function beginRaidPvP(id){toast("Загружаю базу игрока…");
     .then(r=>r.json()).then(rows=>{const r=rows&&rows[0];if(!r){toast("Остров не найден");return;}
       const c=baseFromSnapshot(r);if(!c){toast("База игрока пуста");return;}startWarFrom(c);})
     .catch(()=>toast("Ошибка загрузки базы"));}
+/* ── ЗАКЛИНАНИЯ БОЯ ── заряды по уровню HQ; выбор кнопкой, каст тапом по карте */
+const SPELLS={
+  lightning:{emoji:"⚡",hq:3,uses:2,tip:"Молния: урон зданиям в области"},
+  heal:{emoji:"💚",hq:4,uses:2,tip:"Лечение: восстанавливает бойцов в круге"},
+  rage:{emoji:"😡",hq:5,uses:1,tip:"Ярость: +урон и +скорость бойцам в круге"}
+};
+function castSpell(gx,gy){
+  const sp=war.activeSpell; if(!sp)return;
+  const st=war.spells[sp]; if(!st||st.n<=0){war.activeSpell=null;updSpellBar();return;}
+  st.n--; war.activeSpell=null;
+  const p=iso(gx,gy),sx=p[0],sy=p[1];
+  if(sp==="lightning"){
+    const R=1.7,dmg=Math.round(260+70*(war.lvl||1));
+    for(const b of war.enemy){ if(b.hp<=0||b.type==="wall")continue; const s=BT[b.type].size;
+      if(Math.hypot(b.gx+s/2-gx,b.gy+s/2-gy)<=R+s*0.35){ b.hp-=dmg;
+        if(b.hp<=0){ grabLoot(b); const bs=iso(b.gx+s/2,b.gy+s/2);
+          burst(bs[0],bs[1]-12*ZOOM,16,"rgba(170,150,130,.95)",{spd:120,life:0.6,size:3}); SND.explosion(); } } }
+    war.zones.push({kind:"bolt",gx,gy,t:0.5});
+    burst(sx,sy-8*ZOOM,22,"rgba(170,220,255,.95)",{spd:150,life:0.5,size:3});
+    burst(sx,sy-8*ZOOM,10,"rgba(255,255,255,.9)",{spd:60,life:0.3,size:2});
+    sfx("explosion"); addShake(7);
+  } else if(sp==="heal"){
+    war.zones.push({kind:"heal",gx,gy,r:2.3,t:6,rate:90+15*(S.hqLevel||1)}); sfx("upgrade");
+  } else if(sp==="rage"){
+    war.zones.push({kind:"rage",gx,gy,r:2.3,t:8}); sfx("raid"); addShake(3);
+  }
+  updSpellBar();
+}
+function heroCry(){
+  if(!war||war.over||war.cryUsed)return;
+  const h=war.units.find(u=>u.hero&&u.hp>0);
+  if(!h){toast("Сначала высади героя");return;}
+  war.cryUsed=true;
+  war.zones.push({kind:"rage",gx:h.gx,gy:h.gy,r:3,t:6});
+  h.hp=Math.min(h.maxhp,h.hp+Math.round(h.maxhp*0.15));
+  const p=iso(h.gx,h.gy);burst(p[0],p[1]-14*ZOOM,16,"rgba(255,120,120,.95)",{spd:120,life:0.5,size:3});
+  sfx("raid");addShake(5);toast("🗯 Брутус взревел: ярость союзникам!");
+  updSpellBar();
+}
+function updSpellBar(){
+  const bar=document.getElementById("spellBar"); if(!bar)return;
+  if(!war||war.over||mode!=="war"){bar.style.display="none";return;}
+  bar.style.display="flex"; bar.innerHTML="";
+  const mk=(txt,tip,dis,selq,fn)=>{const b=document.createElement("button");
+    b.textContent=txt; b.title=tip;
+    b.style.cssText="min-width:62px;padding:10px 12px;border-radius:12px;border:2px solid "+(selq?"#ffce5c":"#2c4a86")+";background:"+(selq?"#3a2f10":"#0f1d3d")+";color:#eaf3ff;font:700 15px system-ui;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);opacity:"+(dis?0.45:1);
+    b.onclick=fn; bar.appendChild(b); return b;};
+  for(const k in SPELLS){const sp=SPELLS[k];
+    if((S.hqLevel||1)<sp.hq){ mk(sp.emoji+" 🔒","Откроется с HQ "+sp.hq,true,false,function(){toast("Откроется с HQ "+sp.hq);}); continue; }
+    const cnt=(war.spells[k]||{}).n||0;
+    (function(key,c){ mk(SPELLS[key].emoji+" ×"+c, SPELLS[key].tip, c<=0, war.activeSpell===key, function(){
+      if(c<=0){toast("Заклинаний не осталось");return;}
+      war.activeSpell=(war.activeSpell===key?null:key);
+      if(war.activeSpell)toast("Выбери точку — тапни по карте");
+      updSpellBar(); }); })(k,cnt);
+  }
+  if(war.heroUsed&&!war.cryUsed){const h=war.units.find(u=>u.hero&&u.hp>0);
+    if(h)mk("🗯","Клич Брутуса: ярость союзникам вокруг героя",false,false,heroCry);}
+}
 function deployBlocked(gx,gy){const cx=Math.floor(gx),cy=Math.floor(gy);
   for(const b of war.enemy){if(b.hp<=0)continue;const s=BT[b.type].size;if(cx>=b.gx&&cx<b.gx+s&&cy>=b.gy&&cy<b.gy+s)return true;}return false;}
 function freeDeploySpot(gx,gy){for(let r=0.6;r<=GRID;r+=0.6)for(let a=0;a<16;a++){const ang=a/16*6.283,nx=gx+Math.cos(ang)*r,ny=gy+Math.sin(ang)*r;
   if(nx<0.5||ny<0.5||nx>GRID-0.5||ny>GRID-0.5)continue;if(!deployBlocked(nx,ny))return[nx,ny];}return[gx,gy];}
 function deployAt(gx,gy){
   if(!war||war.over)return;
+  if(war.activeSpell){castSpell(gx,gy);return;}
   // высадка в точке тапа (можно близко к базе); если клетка занята зданием/стеной — сдвигаем наружу
   let px=Math.max(0.5,Math.min(GRID-0.5,gx)),py=Math.max(0.5,Math.min(GRID-0.5,gy));
   if(deployBlocked(px,py)){const f=freeDeploySpot(px,py);px=f[0];py=f[1];}
@@ -1763,7 +1836,7 @@ function deployAt(gx,gy){
     war.units.push({type:"hero",hero:1,def:HERO,gx:px,gy:py,hp:Math.round(HERO.hp*(1+0.25*((S.hero.level||1)-1))),
       maxhp:Math.round(HERO.hp*(1+0.25*((S.hero.level||1)-1))),dmg:Math.round(HERO.dmg*(1+0.25*((S.hero.level||1)-1))),
       speed:HERO.speed,ranged:0,prefDef:1,air:0,target:null,atkcd:0,_atk:0});
-    renderSide();return;
+    renderSide();updSpellBar();return;
   }
   const k=S.selUnit;
   if((war.reserve[k]||0)<=0){toast("Нет «"+UT[k].name+"»");return;}
@@ -1830,22 +1903,31 @@ function findPath(u,target,grid){
 function updateWar(dt){
   const now=Date.now();
   const grid=wallGrid();if(war.wallVer==null)war.wallVer=0;
+  if(war.zones&&war.zones.length){
+    for(const z of war.zones){ z.t-=dt;
+      if(z.kind==="heal"){ for(const u of war.units){ if(u.hp<=0)continue;
+        if(Math.hypot(u.gx-z.gx,u.gy-z.gy)<=z.r)u.hp=Math.min(u.maxhp,u.hp+z.rate*dt); } }
+      else if(z.kind==="rage"){ for(const u of war.units){ if(u.hp<=0)continue;
+        if(Math.hypot(u.gx-z.gx,u.gy-z.gy)<=z.r)u._rageT=Math.max(u._rageT||0,0.35); } } }
+    war.zones=war.zones.filter(z=>z.t>0);
+  }
   for(const u of war.units){
-    if(u.hp<=0)continue;u._atk=Math.max(0,u._atk-dt*3);
+    if(u.hp<=0)continue;u._atk=Math.max(0,u._atk-dt*3);if(u._rageT)u._rageT=Math.max(0,u._rageT-dt);
     if(u._burn)u._burn=Math.max(0,u._burn-dt*0.6);   // огонь остывает, если враг вышел из пламени
     if(!u.target||u.target.hp<=0){u.target=nearestB(u);u._path=null;u._pt=null;}
     const t=u.target;if(!t)continue;
     const s=BT[t.type].size,cxg=t.gx+s/2,cyg=t.gy+s/2,dx=cxg-u.gx,dy=cyg-u.gy,d=Math.hypot(dx,dy)||1e-6;
     const reach=(u.ranged?u.ranged:0.9)+s*0.45;            // учитываем размер здания
     if(d<=reach){ // в зоне удара — атакуем
-      u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=u.dmg*unitDmgMul(u,t.type);u.atkcd=0.7;u._atk=1;
+      u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=Math.round(u.dmg*unitDmgMul(u,t.type)*(u._rageT>0?1.6:1));u.atkcd=(u._rageT>0?0.55:0.7);u._atk=1;
         const tsx=iso(cxg,cyg);hitFx(u,t,tsx);
         if(t.hp<=0){if(t.type==="wall")war.wallVer++;grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});(t.type==="wall"?SND.wallbreak():SND.explosion());addShake(6);}
         else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
         if(u.ranged||u.air){sfx("shoot");war.shots.push({x1:u.gx,y1:u.gy,x2:cxg,y2:cyg,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":(u.type==="blaze"?"rgba(255,160,90,.95)":"rgba(120,224,200,.9)")});}}
       continue;}
     u.moving=true;
-    if(u.air||u.ignoreWall){u.gx+=dx/d*u.speed*dt;u.gy+=dy/d*u.speed*dt;continue;} // авиация/Blaze — поверх стен
+    const uspd=u.speed*(u._rageT>0?1.4:1);
+    if(u.air||u.ignoreWall){u.gx+=dx/d*uspd*dt;u.gy+=dy/d*uspd*dt;continue;} // авиация/Blaze — поверх стен
     // путь вокруг стен (пересчёт при смене цели/стен)
     if(!u._path||u._pt!==t||u._ver!==war.wallVer){
       const p=findPath(u,t,grid);
@@ -1856,7 +1938,7 @@ function updateWar(dt){
     if(u._path&&u._path.length){if(u._pi<u._path.length){const wp=u._path[u._pi];aimX=wp[0];aimY=wp[1];
       if(Math.hypot(aimX-u.gx,aimY-u.gy)<0.3)u._pi++;}}
     const adx=aimX-u.gx,ady=aimY-u.gy,ad=Math.hypot(adx,ady)||1e-6;
-    u.gx+=adx/ad*u.speed*dt;u.gy+=ady/ad*u.speed*dt;
+    u.gx+=adx/ad*uspd*dt;u.gy+=ady/ad*uspd*dt;
   }
   for(const b of war.enemy){
     if(b.hp<=0||BT[b.type].role!=="def")continue;b.cd-=dt;if(b.cd>0)continue;
@@ -1881,7 +1963,7 @@ function updateWar(dt){
   }
 }
 function grabLoot(b){if(b.ice){war.lootedIce+=b.ice;b.ice=0;}if(b.stone){war.lootedStone+=b.stone;b.stone=0;}if(b.gem){war.lootedGem+=b.gem;b.gem=0;}}
-function endWar(win){
+function endWar(win){ war.activeSpell=null; { const _sb=document.getElementById("spellBar"); if(_sb)_sb.style.display="none"; }
   war.over=true;
   if(war.test){ // тест обороны: без наград, база не меняется (использовалась копия)
     var left=war.enemy.filter(function(b){return b.hp>0;}).length;
@@ -2508,8 +2590,9 @@ function addBtn(){
 if(document.readyState!=="loading")addBtn();else document.addEventListener("DOMContentLoaded",addBtn);
 if(LANG!=="en")return;
 var D={"🏗 Построить":"🏗 Build","Построить":"Build","Задания":"Quests","Гости":"Visitors","База":"Base","⚔ Поход":"⚔ Raid","Поход":"Raid","Кошелёк":"Wallet","Экономика":"Economy","Армия":"Army","Защита":"Defense","Закрыть":"Close","Отмена":"Cancel","Пропустить":"Skip","Удалить":"Remove","Улучшить":"Upgrade","Переместить":"Move","✋ Перенести":"✋ Move","🗑 Снести":"🗑 Demolish","Снести":"Demolish","Снести здание?":"Demolish building?","Удалить объект?":"Remove object?","Улучшение:":"Upgrade:","🏗 Нажми «Построить» → вкладка «Ресурсы» → поставь Gold Collector.":"🏗 Tap «Build» → «Economy» tab → place a Gold Collector.","⛽ Теперь поставь Oil Collector — топливо для армии.":"⛽ Now place an Oil Collector — fuel for your army.","🏰 Построй Army Camp и Infantry Factory (вкладка «Армия»).":"🏰 Build an Army Camp and an Infantry Factory («Army» tab).","⚔ Натренируй пару бойцов — тапни по Infantry Factory.":"⚔ Train a couple of fighters — tap the Infantry Factory.","🗺 Жми «⚔ Поход» сверху и разбей вражескую базу!":"🗺 Hit «⚔ Raid» at the top and smash an enemy base!","⬆ Отлично! Улучши свой Штаб (HQ) — тапни по нему и нажми «Улучшить».":"⬆ Great! Upgrade your HQ — tap it and press «Upgrade».","Растёт за Gold. Открывает здания, войска и лимиты.":"Upgrades with Gold. Unlocks buildings, troops and caps.","Добывает Gold. Качай вместе со складом.":"Produces Gold. Upgrade together with storage.","Добывает Oil — топливо для войск.":"Produces Oil — fuel for troops.","Повышает лимит Gold. Без места — не построить.":"Raises the Gold cap. No space — no building.","Повышает лимит Oil.":"Raises the Oil cap.","Вмещает армию. Сумма лагерей = размер армии.":"Houses your army. Camps total = army size.","Тренирует пехоту за Oil. Уровень открывает бойцов.":"Trains infantry for Oil. Level unlocks fighters.","Тренирует авиацию (Skyfire) за Oil.":"Trains aircraft (Skyfire) for Oil.","Исследует уровни войск: +урон и +прочность бойцам.":"Researches troop levels: +damage and +HP.","Призывает героя Brutus. В бою ставится раз; гибель — откат.":"Summons hero Brutus. Once per battle; death = cooldown.","Пушка по наземным. Одиночная цель, быстрая — база обороны.":"Cannon vs ground. Single target, fast — core defense.","Огонь по площади: поджигает толпу, урон растёт пока враг в пламени (до x2). Ближний радиус.":"Area fire: ignites crowds, damage ramps while enemies burn (up to x2). Short range.","Только по авиации. Без неё Skyfire безнаказан.":"Air-only. Without it, Skyfire goes unpunished.","Сплеш-урон по группе наземных. Медленная.":"Splash damage vs ground groups. Slow.","Преграда. Тормозит штурм (Blaze бьёт поверх).":"Barrier. Slows the assault (Blaze shoots over).","Мили-молот. Бьёт ближайшее, огрызается на врагов.":"Melee hammer. Hits the nearest, strikes back at attackers.","Тяжёлый танк. Метит в защиту, держит огонь, пробивает стены.":"Heavy tank. Targets defenses, soaks fire, smashes walls.","Дальник. Стреляет из-за спин танков.":"Ranged. Shoots from behind the tanks.","РПГ. Огромный урон по зданиям — стены игнорирует.":"RPG. Huge damage to buildings — ignores walls.","АВИАЦИЯ. Летит над всем, бьёт по земле и воздуху. Сбить может только Anti-Air.":"AIR. Flies over everything, hits ground and air. Only Anti-Air can down it.","Ежедневная награда":"Daily reward","Забрать":"Claim","Забрать награду":"Claim reward","Построй или улучши 3 здания":"Build or upgrade 3 buildings","Натренируй 6 юнитов":"Train 6 units","Победи в 3 рейдах":"Win 3 raids","Соверши набег на игрока":"Raid a player","Атаковать":"Attack","К базе":"To base","🏠 Домой":"🏠 Home","Отступить":"Retreat","Новый поход":"New raid","В гости":"Visit","Победа!":"Victory!","Поражение":"Defeat","Трофеи":"Trophies","Добыча":"Loot","Забрано":"Taken","Домой":"Home","Все строители заняты":"All builders are busy","Сюда нельзя":"Can't place here","Тапни новое место":"Tap a new spot","Сначала построй здания":"Build something first","Исследование готово!":"Research complete!","HQ снести нельзя":"HQ can't be demolished","Hero Altar уже есть":"Hero Altar already exists","Убрано":"Removed","Доступно на базе":"Available at your base","Остров не найден":"Island not found","📍 Камера в центре":"📍 Camera centered","🎯 Высадка выключена":"🎯 Deploy mode off","Solana Devnet · тестовый токен":"Solana Devnet · test token","Ruby → $CRYSTAL (вывод)":"Ruby → $CRYSTAL (withdraw)","$CRYSTAL → Ruby (ввод)":"$CRYSTAL → Ruby (deposit)","Подключи кошелёк Phantom (переключи его на Devnet)":"Connect your Phantom wallet (switch it to Devnet)","Курс 1 Ruby = 1 $CRYSTAL. Нужен запущенный bridge-server.js.":"Rate: 1 Ruby = 1 $CRYSTAL. Requires bridge-server.js running.","сколько Ruby":"Ruby amount","сколько $CRYSTAL":"$CRYSTAL amount","Подключить Phantom":"Connect Phantom","⏏ Отключить кошелёк":"⏏ Disconnect wallet","Вывести":"Withdraw","Ввести":"Deposit","Выдать ресурсы":"Grant resources","Сбросить игру":"Reset game","✖ Убрать атаку":"✖ Clear attack"};
-Object.assign(D,{"ИГРОК":"PLAYER",", найми войско, потом «Поход». Авиация — в":", train troops, then «Raid». Aircraft — in"});Object.assign(D,{"игрок":"player","Игрок":"Player","с":"s","м":"m","ч":"h","д":"d","Тащи — карта · колесо/щипок — зум · тап по зданию — меню. Построй":"Drag — pan · wheel/pinch — zoom · tap a building — menu. Build","и":"&","найми войско, потом «Поход». Авиация — в":", train troops, then «Raid». Aircraft — in","(HQ 4).":"(HQ 4)."});Object.assign(D,{"Игрок":"Player","Открывает здания, войска и лимиты.":"Unlocks buildings, troops and caps."});Object.assign(D,{"🏰 База":"🏰 Base","🏝 Гости":"🏝 Visitors","🎁 Задания":"🎁 Quests","Задания и награды":"Quests & rewards","Задания обновляются каждый день.":"Quests refresh daily.","База игрока пуста":"This player base is empty"});
+Object.assign(D,{"Молния: урон зданиям в области":"Lightning: damages buildings in an area","Лечение: восстанавливает бойцов в круге":"Heal: restores troops in a circle","Ярость: +урон и +скорость бойцам в круге":"Rage: +damage & +speed for troops in a circle","Клич Брутуса: ярость союзникам вокруг героя":"Brutus' War Cry: rage for allies around the hero","Сначала высади героя":"Deploy your hero first","🗯 Брутус взревел: ярость союзникам!":"🗯 Brutus roars: rage to allies!","Выбери точку — тапни по карте":"Pick a spot — tap the map","Заклинаний не осталось":"No spells left","Герой недоступен":"Hero unavailable","Герой уже на поле":"Hero already deployed"});Object.assign(D,{"ИГРОК":"PLAYER",", найми войско, потом «Поход». Авиация — в":", train troops, then «Raid». Aircraft — in"});Object.assign(D,{"игрок":"player","Игрок":"Player","с":"s","м":"m","ч":"h","д":"d","Тащи — карта · колесо/щипок — зум · тап по зданию — меню. Построй":"Drag — pan · wheel/pinch — zoom · tap a building — menu. Build","и":"&","найми войско, потом «Поход». Авиация — в":", train troops, then «Raid». Aircraft — in","(HQ 4).":"(HQ 4)."});Object.assign(D,{"Игрок":"Player","Открывает здания, войска и лимиты.":"Unlocks buildings, troops and caps."});Object.assign(D,{"🏰 База":"🏰 Base","🏝 Гости":"🏝 Visitors","🎁 Задания":"🎁 Quests","Задания и награды":"Quests & rewards","Задания обновляются каждый день.":"Quests refresh daily.","База игрока пуста":"This player base is empty"});
 var RX=[["^СТРОИТЕЛЬСТВО · HQ УР\\.(.+)$","BUILD · HQ LV.$1"],["^СТРОИТЕЛИ: (.+) СВОБОДНО · АРМИЯ (.+)$","BUILDERS: $1 FREE · ARMY $2"],["^HQ ур\\.(.+)$","HQ lv.$1"],["^Лимит (.+)$","Limit $1"],["^Откроется с HQ ур\\.(.+)$","Unlocks at HQ lv.$1"],["^Не хватает (.+)$","Not enough $1"],["^ур\\. ?(\\d+)(.*)$","lv. $1$2"],["^🎁 Награда дня: (.+)$","🎁 Daily reward: $1"],["^Награда: (.+)$","Reward: $1"],["^🎯 Тапай по карте — высаживай «(.+)»(.*)$","🎯 Tap the map — deploy «$1»$2"],["^🎯 Теперь высаживаешь «(.+)»(.*)$","🎯 Now deploying «$1»$2"],["^Тапни по полю — поставить «(.+)»(.*)$","Tap the field to place «$1»$2"],["^Тапни по карте, чтобы поставить «(.+)»(.*)$","Tap the map to place «$1»$2"]].map(function(r){return [new RegExp(r[0]),r[1]];});
+RX=RX.concat([["^Откроется с HQ (\\d+)$","Unlocks at HQ $1"]].map(function(r){return [new RegExp(r[0]),r[1]];}));
 RX=RX.concat([["^⏳ Идёт работа · осталось (.+)$","⏳ Working · $1 left"],["^(.*)осталось высадить(.*)$","$1left to deploy$2"]].map(function(r){return [new RegExp(r[0]),r[1]];}));
 RX=RX.concat([["^Строительство · HQ ур.(.+)$","Build · HQ lv.$1"],["^Строители: (.+) свободно · армия (.+)$","Builders: $1 free · army $2"],["^(.+) · ур. ?(.+)$","$1 · lv. $2"],["^(d+)с$","$1s"],["^(d+)м (d+)с$","$1m $2s"],["^(d+)м$","$1m"],["^(d+)ч (d+)м$","$1h $2m"],["^(d+)ч$","$1h"],["^(d+)д (d+)ч$","$1d $2h"]].map(function(r){return [new RegExp(r[0]),r[1]];}));
 function tr(t){
