@@ -1192,7 +1192,7 @@ function drawBar(cx,topY,w,p,fg,bg){p=Math.max(0,Math.min(1,p));ctx.fillStyle=bg
 // ── Спрайты юнитов: ОДИН png на тип, анимируется кодом (шаг, наклон, выпад, разворот, парение) ──
 // положи в assets/: knight.png (Brute), striker.png, marine.png, blaze.png, skyfire.png, hero.png
 const UNIT_SPR_FILES={brute:"assets/knight2.png?v=1",striker:"assets/maceman2.png?v=1",marine:"assets/archer2.png?v=1",blaze:"assets/mage2.png?v=1",skyfire:"assets/balloon2.png?v=1",hero:"assets/hero.png"};
-const UNIT_SPR_H={brute:4.6,striker:4.2,marine:4.3,blaze:4.3,skyfire:5.4,hero:4.8}; // высота спрайта в радиусах r
+const UNIT_SPR_H={brute:5.0,striker:4.2,marine:4.6,blaze:4.6,skyfire:5.4,hero:4.8}; // высота спрайта в радиусах r
 const unitSpr={};
 for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};unitSpr[k]=rec;const im=new Image();
   im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
@@ -1201,12 +1201,18 @@ for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};uni
 let knightSpr=null; // совместимость
 /* ── ПОКАДРОВАЯ АНИМАЦИЯ (3D-скелет → кадры) ── лист приоритетнее рига; кадры выровнены по общему bbox */
 const UNIT_SHEETS={
-  marine:{walk:{src:"assets/anim_archer_walk.png?v=1",frames:8,fw:102,fh:192,fps:11}},
-  brute:{walk:{src:"assets/anim_knight_walk.png?v=1",frames:8,fw:145,fh:192,fps:10},
-         idle:{src:"assets/anim_knight_idle.png?v=1",frames:8,fw:182,fh:192,fps:8},
-         attack:{src:"assets/anim_knight_attack.png?v=1",frames:8,fw:220,fh:192,flip:1,scale:1.12},
-         death:{src:"assets/anim_knight_death.png?v=1",frames:8,fw:183,fh:192,dur:0.9}},
-  blaze:{walk:{src:"assets/anim_mage_walk.png?v=1",frames:8,fw:147,fh:192,fps:10}},
+  brute:{walk:{src:"assets/anim2_knight3_walk.png?v=1",frames:8,fw:215,fh:192,fps:10},
+         idle:{src:"assets/anim2_knight3_idle.png?v=1",frames:4,fw:215,fh:192,fps:7},
+         attack:{src:"assets/anim2_knight3_attack.png?v=1",frames:8,fw:215,fh:192},
+         death:{src:"assets/anim2_knight3_death.png?v=1",frames:8,fw:215,fh:192,dur:0.9}},
+  marine:{walk:{src:"assets/anim2_archer3_walk.png?v=1",frames:8,fw:142,fh:192,fps:11},
+         idle:{src:"assets/anim2_archer3_idle.png?v=1",frames:4,fw:142,fh:192,fps:7},
+         attack:{src:"assets/anim2_archer3_attack.png?v=1",frames:8,fw:142,fh:192},
+         death:{src:"assets/anim2_archer3_death.png?v=1",frames:8,fw:142,fh:192,dur:0.9}},
+  blaze:{walk:{src:"assets/anim2_mage3_walk.png?v=1",frames:8,fw:142,fh:192,fps:10},
+         idle:{src:"assets/anim2_mage3_idle.png?v=1",frames:4,fw:142,fh:192,fps:7},
+         attack:{src:"assets/anim2_mage3_attack.png?v=1",frames:8,fw:142,fh:192},
+         death:{src:"assets/anim2_mage3_death.png?v=1",frames:8,fw:142,fh:192,dur:0.9}},
   striker:{walk:{src:"assets/anim_maceman_walk.png?v=1",frames:8,fw:156,fh:192,fps:11}}
 };
 const unitSheet={};
@@ -1454,6 +1460,21 @@ function render(){
     for(const u of war.units)if(u.hp>0)ents.push({k:"u",o:u,d:u.gx+u.gy+(u.air?-2:0)});
     ents.sort((a,b)=>a.d-b.d);
     for(const e of ents){if(e.k==="b")drawBuilding(e.o);else if(e.k==="d")drawObstacle(e.o);else drawUnit(e.o);}
+    for(const p of (war.projs||[])){const k=Math.min(1,p.t/p.dur);
+      const a1=iso(p.x1,p.y1),b1=iso(p.x2,p.y2);
+      const lift=(p.fromAir?16*ZOOM:8*ZOOM)*(1-k)+Math.sin(k*Math.PI)*6*ZOOM;
+      const px=a1[0]+(b1[0]-a1[0])*k,py=a1[1]+(b1[1]-a1[1])*k-lift;
+      if(p.kind==="blaze"){ // магический снаряд: розовое ядро со свечением
+        ctx.save();ctx.globalCompositeOperation="lighter";
+        const gr=ctx.createRadialGradient(px,py,0,px,py,7*ZOOM);
+        gr.addColorStop(0,"rgba(255,220,255,.95)");gr.addColorStop(0.5,"rgba(240,120,255,.7)");gr.addColorStop(1,"rgba(200,60,255,0)");
+        ctx.fillStyle=gr;ctx.beginPath();ctx.arc(px,py,7*ZOOM,0,7);ctx.fill();ctx.restore();
+      }else{ // стрела: короткий штрих по направлению
+        const dx=b1[0]-a1[0],dy=b1[1]-a1[1],L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L;
+        ctx.strokeStyle="rgba(235,220,180,.95)";ctx.lineWidth=2*ZOOM;
+        ctx.beginPath();ctx.moveTo(px-ux*7*ZOOM,py-uy*7*ZOOM);ctx.lineTo(px,py);ctx.stroke();
+        ctx.fillStyle="rgba(255,255,255,.9)";ctx.beginPath();ctx.arc(px,py,1.6*ZOOM,0,7);ctx.fill();
+      }}
     for(const sh of war.shots){const[x1,y1]=iso(sh.x1,sh.y1),[x2,y2]=iso(sh.x2,sh.y2-(sh.air?14*ZOOM/ZOOM:0));
       ctx.strokeStyle=sh.col;ctx.lineWidth=2.2*ZOOM;ctx.beginPath();ctx.moveTo(x1,y1-(sh.fromAir?14*ZOOM:0));ctx.lineTo(x2,y2);ctx.stroke();}
     for(const z of (war.zones||[])){const zp=iso(z.gx,z.gy),zx=zp[0],zy=zp[1];
@@ -1911,6 +1932,13 @@ function deployAt(gx,gy){
     ignoreWall:def.ignoreWall?1:0,retaliate:def.retaliate?1:0,target:null,atkcd:0,_atk:0});
   renderSide();
 }
+const IMPACT_AT={brute:0.15,hero:0.15,striker:0.14,marine:0.16,blaze:0.20,skyfire:0.12}; // сек от начала замаха до контакта
+function onBuildingKilled(t,tsx){
+  if(t.type==="wall")war.wallVer++;grabLoot(t);
+  burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});
+  burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});
+  (t.type==="wall"?SND.wallbreak():SND.explosion());addShake(6);
+}
 function nearestB(u){
   let best=null,bd=1e9;
   for(const b of war.enemy){if(b.hp<=0)continue;
@@ -1979,19 +2007,39 @@ function updateWar(dt){
     war.zones=war.zones.filter(z=>z.t>0);
   }
   tickCorpses(war,war.units,dt);
+  if(war.projs&&war.projs.length){
+    for(const p of war.projs){p.t+=dt;
+      if(p.t>=p.dur&&!p.hit){p.hit=1;const t2=p.tgt;
+        if(t2&&t2.hp>0){const s2=BT[t2.type].size,tsx=iso(t2.gx+s2/2,t2.gy+s2/2);
+          t2.hp-=p.dmg;hitFx({type:p.kind,air:p.fromAir},t2,tsx);
+          if(t2.hp<=0)onBuildingKilled(t2,tsx);else sfx("hit");}}}
+    war.projs=war.projs.filter(p=>p.t<p.dur+0.02);
+  }
   for(const u of war.units){
     if(u.hp<=0)continue;u._atk=Math.max(0,u._atk-dt*3);if(u._rageT)u._rageT=Math.max(0,u._rageT-dt);
+    if(u._strike&&ANIM>=u._strike.at){const st=u._strike;u._strike=null;const t2=st.t;
+      if(t2&&t2.hp>0){
+        const dmg2=Math.round(u.dmg*unitDmgMul(u,t2.type)*(u._rageT>0?1.6:1));
+        const s2=BT[t2.type].size,cx2=t2.gx+s2/2,cy2=t2.gy+s2/2;
+        if(u.ranged||u.air){ // дальник: снаряд вылетает СЕЙЧАС (кадр выпуска), урон по прилёту
+          sfx("shoot");if(!war.projs)war.projs=[];
+          war.projs.push({x1:u.gx,y1:u.gy,x2:cx2,y2:cy2,t:0,dur:0.16,kind:u.type,dmg:dmg2,tgt:t2,fromAir:u.air?1:0});
+        }else{
+          const tsx=iso(cx2,cy2);t2.hp-=dmg2;hitFx(u,t2,tsx);
+          if(t2.hp<=0)onBuildingKilled(t2,tsx);
+          else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
+        }
+      }
+    }
     if(u._burn)u._burn=Math.max(0,u._burn-dt*0.6);   // огонь остывает, если враг вышел из пламени
     if(!u.target||u.target.hp<=0){u.target=nearestB(u);u._path=null;u._pt=null;}
     const t=u.target;if(!t)continue;
     const s=BT[t.type].size,cxg=t.gx+s/2,cyg=t.gy+s/2,dx=cxg-u.gx,dy=cyg-u.gy,d=Math.hypot(dx,dy)||1e-6;
     const reach=(u.ranged?u.ranged:0.9)+s*0.45;            // учитываем размер здания
-    if(d<=reach){ // в зоне удара — атакуем
-      u.moving=false;u.atkcd-=dt;if(u.atkcd<=0){t.hp-=Math.round(u.dmg*unitDmgMul(u,t.type)*(u._rageT>0?1.6:1));u.atkcd=(u._rageT>0?0.55:0.7);u._atk=1;
-        const tsx=iso(cxg,cyg);hitFx(u,t,tsx);
-        if(t.hp<=0){if(t.type==="wall")war.wallVer++;grabLoot(t);burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});(t.type==="wall"?SND.wallbreak():SND.explosion());addShake(6);}
-        else{burst(tsx[0],tsx[1]-10*ZOOM,4,"rgba(255,210,120,.95)",{spd:50,life:0.3,up:18,size:2,grav:120});sfx("hit");}
-        if(u.ranged||u.air){sfx("shoot");war.shots.push({x1:u.gx,y1:u.gy,x2:cxg,y2:cyg,life:0.1,fromAir:u.air,col:u.air?"rgba(159,224,255,.95)":(u.type==="blaze"?"rgba(255,160,90,.95)":"rgba(120,224,200,.9)")});}}
+    if(d<=reach){ // в зоне удара: сначала ЗАМАХ, урон придёт в кадр контакта (IMPACT_AT)
+      u.moving=false;u.atkcd-=dt;
+      if(u.atkcd<=0){u.atkcd=(u._rageT>0?0.55:0.7);u._atk=1;
+        u._strike={t:t,at:ANIM+(IMPACT_AT[u.type]||0.15)};}
       continue;}
     u.moving=true;
     const uspd=u.speed*(u._rageT>0?1.4:1);
