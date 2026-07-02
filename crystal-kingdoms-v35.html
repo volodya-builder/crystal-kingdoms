@@ -457,16 +457,16 @@ const BT={
 
  cannon:{name:"Cannon",size:2,role:"def",target:"ground",cls:"cannon",hq:1,
    desc:"Пушка по наземным. Одиночная цель, быстрая — база обороны.",
-   lv:buildLv({hp:[380,1.30],ice:[120,2.25],t:[7,1.5],dmg:[28,1.34],range:[4.5,0.1],cd:[0.6,0.98]})},
+   lv:buildLv({hp:[460,1.30],ice:[120,2.25],t:[7,1.5],dmg:[28,1.34],range:[4.5,0.1],cd:[0.6,0.98]})},
  flame:{name:"Flame Tower",size:2,role:"def",target:"ground",splash:1.2,burn:1,cls:"flame",hq:1,
    desc:"Огонь по площади: поджигает толпу, урон растёт пока враг в пламени (до x2). Ближний радиус.",
-   lv:buildLv({hp:[420,1.31],ice:[140,2.25],t:[8,1.5],dmg:[16,1.34],range:[3.4,0.09],cd:[0.5,0.97]})},
+   lv:buildLv({hp:[500,1.31],ice:[140,2.25],t:[8,1.5],dmg:[16,1.34],range:[3.4,0.09],cd:[0.5,0.97]})},
  aa:{name:"Anti-Air",size:2,role:"def",target:"air",cls:"aa",hq:2,
    desc:"Только по авиации. Без неё Balloon безнаказан.",
-   lv:buildLv({hp:[380,1.31],ice:[240,2.2],t:[10,1.5],dmg:[34,1.32],range:[6.5,0.22],cd:[0.5,0.98]})},
+   lv:buildLv({hp:[460,1.31],ice:[240,2.2],t:[10,1.5],dmg:[34,1.32],range:[6.5,0.22],cd:[0.5,0.98]})},
  mortar:{name:"Mortar",size:2,role:"def",target:"ground",splash:1.3,cls:"mortar",hq:3,
    desc:"Сплеш-урон по группе наземных. Медленная.",
-   lv:buildLv({hp:[460,1.31],ice:[320,2.2],t:[12,1.5],dmg:[44,1.33],range:[5.5,0.11],cd:[2.4,0.98]})},
+   lv:buildLv({hp:[550,1.31],ice:[320,2.2],t:[12,1.5],dmg:[44,1.33],range:[5.5,0.11],cd:[2.4,0.98]})},
 
  wall:{name:"Wall",size:1,role:"wall",cls:"wall",hq:1,
    desc:"Преграда. Тормозит штурм (Mage бьёт поверх).",
@@ -489,9 +489,9 @@ const UT={
    cost:900,t:40,prefDef:1,color:"#5a86c8",desc:"Рыцарь-танк. Много HP, метит в защиту, пробивает стены."},
  marine:{name:"Archer",icon:"marine",build:"factory",unlock:3,hp:520,dmg:135,speed:1.1,space:26,ranged:2.8,
    cost:320,t:16,color:"#74e0c0",desc:"Лучник. Стреляет из-за спин рыцарей."},
- blaze:{name:"Mage",icon:"blaze",build:"factory",unlock:4,hp:680,dmg:290,speed:0.95,space:34,ranged:3.0,ignoreWall:1,
+ blaze:{name:"Mage",icon:"blaze",build:"factory",unlock:4,hp:680,dmg:240,speed:0.95,space:34,ranged:3.0,ignoreWall:1,
    cost:600,t:22,color:"#ff9d5c",desc:"Маг. Огненная магия бьёт через стены — стены игнорирует."},
- skyfire:{name:"Balloon",icon:"skyfire",build:"hangar",unlock:1,hp:760,dmg:235,speed:1.25,space:40,ranged:3.2,air:1,
+ skyfire:{name:"Balloon",icon:"skyfire",build:"hangar",unlock:1,hp:760,dmg:205,speed:1.25,space:40,ranged:3.2,air:1,
    cost:700,t:22,color:"#9fe0ff",desc:"Воздушный шар. Летит над всем, бомбит с воздуха. Сбить может только Anti-Air."},
 };
 const TROOP_ORDER=["striker","brute","marine","blaze","skyfire"];
@@ -927,6 +927,9 @@ const SPRITE_FILES={
 // после автокропа картинка = само здание; base=1.0 ставит низ ровно на тень.
 // общий коэффициент подгонки: <1 ужимает здания внутрь их клеток (один регулятор на все)
 const SPRITE_FIT=0.74;
+// уровневые скины: у здания свой арт на каждом уровне (assets/<тип>_lvN.png)
+const SPRITE_LEVEL_FILES={cannon:Array.from({length:10},function(_,i){return "assets/cannon_lv"+(i+1)+".png?v=1";})};
+const SPRITES_LV={};
 // scale — индивидуальная поправка относительно футпринта
 const SPRITE_FILE_CFG={
   hq:{scale:1.0,base:1.0,dy:0}, icemine:{scale:1.0,base:1.0,dy:0}, stonepump:{scale:1.0,base:1.0,dy:0},
@@ -1131,7 +1134,10 @@ function drawObstacle(o){const sz=OB[o.type].size,cen=iso(o.gx+sz/2,o.gy+sz/2),i
   }}
 function drawBuilding(b){
   drawPlot(b);
-  {const _sp=SPRITES[b.type];if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
+  {let _sp=SPRITES[b.type];
+   const _lvA=SPRITES_LV[b.type];
+   if(_lvA){const _ls=_lvA[Math.max(0,Math.min(b.level||1,_lvA.length)-1)];if(_ls&&_ls.ready&&_ls.img)_sp=_ls;}
+   if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
   const d=BT[b.type],s=d.size,[cx,cy]=iso(b.gx+s/2,b.gy+s/2);
   const wpx=s*TW*ZOOM*0.92,baseH=(s===1?14:(b.type==="hq"?40:26))*ZOOM,col=BCOL[b.type],w=wpx,h=wpx*0.5;
   const T=ANIM,ph=b.gx*0.7+b.gy*0.5;
@@ -1198,20 +1204,26 @@ for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};uni
   im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
     try{if(rec.img&&rec.img.toDataURL&&typeof ICN!=="undefined")ICN[k]=rec.img.toDataURL();}catch(e){}};
   im.onerror=function(){};im.src=UNIT_SPR_FILES[k];})(k);}
+for(const k in SPRITE_LEVEL_FILES){SPRITES_LV[k]=SPRITE_LEVEL_FILES[k].map(function(src){
+  const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy:0};
+  const rec={img:null,scale:c.scale,base:c.base,dy:c.dy,src:src,ready:false};
+  const im=new Image();
+  im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;};
+  im.onerror=function(){};im.src=src;return rec;});}
 let knightSpr=null; // совместимость
 /* ── ПОКАДРОВАЯ АНИМАЦИЯ (3D-скелет → кадры) ── лист приоритетнее рига; кадры выровнены по общему bbox */
 const UNIT_SHEETS={
-  brute:{walk:{src:"assets/anim2_knight3_walk.png?v=1",frames:8,fw:203,fh:192,fps:10,dy:0.0145},
-         idle:{src:"assets/anim2_knight3_idle.png?v=1",frames:4,fw:203,fh:192,fps:7,dy:0.0145},
-         attack:{src:"assets/anim2_knight3_attack.png?v=1",frames:8,fw:203,fh:192,dy:0.0145},
+  brute:{walk:{src:"assets/anim2_knight3_walk.png?v=1",frames:8,fw:203,fh:192,fps:10,dy:0.026},
+         idle:{src:"assets/anim2_knight3_idle.png?v=1",frames:4,fw:203,fh:192,fps:7,dy:0},
+         attack:{src:"assets/anim2_knight3_attack.png?v=1",frames:8,fw:203,fh:192,dy:0.1302},
          death:{src:"assets/anim2_knight3_death.png?v=1",frames:8,fw:203,fh:192,dur:0.9}},
-  marine:{walk:{src:"assets/anim2_archer3_walk.png?v=1",frames:8,fw:161,fh:192,fps:11,dy:0.1662},
-         idle:{src:"assets/anim2_archer3_idle.png?v=1",frames:4,fw:161,fh:192,fps:7,dy:0.1662},
-         attack:{src:"assets/anim2_archer3_attack.png?v=1",frames:8,fw:161,fh:192,dy:0.1662},
+  marine:{walk:{src:"assets/anim2_archer3_walk.png?v=1",frames:8,fw:161,fh:192,fps:11,dy:0.1667},
+         idle:{src:"assets/anim2_archer3_idle.png?v=1",frames:4,fw:161,fh:192,fps:7,dy:0.1615},
+         attack:{src:"assets/anim2_archer3_attack.png?v=1",frames:8,fw:161,fh:192,dy:0.1927},
          death:{src:"assets/anim2_archer3_death.png?v=1",frames:8,fw:161,fh:192,dur:0.9}},
-  blaze:{walk:{src:"assets/anim2_mage3_walk.png?v=1",frames:8,fw:141,fh:192,fps:10,dy:0.28},
-         idle:{src:"assets/anim2_mage3_idle.png?v=1",frames:4,fw:141,fh:192,fps:7,dy:0.28},
-         attack:{src:"assets/anim2_mage3_attack.png?v=1",frames:8,fw:141,fh:192,dy:0.28},
+  blaze:{walk:{src:"assets/anim2_mage3_walk.png?v=1",frames:8,fw:141,fh:192,fps:10,dy:0.2813},
+         idle:{src:"assets/anim2_mage3_idle.png?v=1",frames:4,fw:141,fh:192,fps:7,dy:0.276},
+         attack:{src:"assets/anim2_mage3_attack.png?v=1",frames:8,fw:141,fh:192,dy:0.1927},
          death:{src:"assets/anim2_mage3_death.png?v=1",frames:8,fw:141,fh:192,dur:0.9}},
   striker:{walk:{src:"assets/anim_maceman_walk.png?v=1",frames:8,fw:156,fh:192,fps:11}}
 };
@@ -1937,7 +1949,7 @@ function onBuildingKilled(t,tsx){
   if(t.type==="wall")war.wallVer++;grabLoot(t);
   burst(tsx[0],tsx[1]-12*ZOOM,18,"rgba(170,150,130,.95)",{spd:130,life:0.7,size:3});
   burst(tsx[0],tsx[1]-12*ZOOM,8,"rgba(255,150,70,.95)",{spd:95,life:0.5,size:3});
-  (t.type==="wall"?SND.wallbreak():SND.explosion());addShake(6);
+  (t.type==="wall"?SND.wallbreak():SND.explosion());
 }
 function nearestB(u){
   let best=null,bd=1e9;
@@ -1952,7 +1964,7 @@ function nearestB(u){
 // множитель урона юнита по типу цели — «характер» юнита
 function unitDmgMul(u,bt){
   if(bt==="wall")return (u.type==="brute"||u.type==="hero")?2.5:1; // танки крушат стены
-  if(u.type==="blaze")return 1.8;                                  // РПГ: огромный урон по зданиям
+  if(u.type==="blaze")return 1.45;                                  // РПГ: огромный урон по зданиям
   if(u.type==="skyfire"&&BT[bt]&&BT[bt].role!=="def")return 1.3;   // бомбардировщик добивает мягкие цели
   return 1;
 }
@@ -1960,12 +1972,12 @@ function unitDmgMul(u,bt){
 function hitFx(u,t,tsx){
   if(u.type==="blaze"){ // РПГ: огненный взрыв по зданию
     burst(tsx[0],tsx[1]-10*ZOOM,10,"rgba(255,140,50,.95)",{spd:100,life:0.42,size:3});
-    burst(tsx[0],tsx[1]-10*ZOOM,5,"rgba(255,220,140,.95)",{spd:60,life:0.3,size:2});addShake(3);}
+    burst(tsx[0],tsx[1]-10*ZOOM,5,"rgba(255,220,140,.95)",{spd:60,life:0.3,size:2});}
   else if((u.type==="brute"||u.type==="hero")&&t.type==="wall"){ // танк: пыль и толчок по стене
-    burst(tsx[0],tsx[1]-8*ZOOM,9,"rgba(195,175,150,.9)",{spd:85,life:0.5,size:3,grav:150});addShake(4);}
+    burst(tsx[0],tsx[1]-8*ZOOM,9,"rgba(195,175,150,.9)",{spd:85,life:0.5,size:3,grav:150});}
   else if(u.type==="brute"||u.type==="hero"){ // меч: искры стали
     burst(tsx[0],tsx[1]-10*ZOOM,7,"rgba(255,255,225,.95)",{spd:120,life:0.28,size:2});
-    burst(tsx[0],tsx[1]-9*ZOOM,4,"rgba(190,210,255,.9)",{spd:70,life:0.22,size:1.6});addShake(2);}
+    burst(tsx[0],tsx[1]-9*ZOOM,4,"rgba(190,210,255,.9)",{spd:70,life:0.22,size:1.6});}
   else if(u.type==="skyfire"){ // авиабомба: голубая вспышка
     burst(tsx[0],tsx[1]-6*ZOOM,7,"rgba(160,220,255,.9)",{spd:75,life:0.36,size:2});}
 }
