@@ -324,6 +324,7 @@
         <label class="ap-check"><input id="apInfRes" type="checkbox"> Бесконечные ресурсы</label>
         <label class="ap-check"><input id="apInstaBuild" type="checkbox"> Моментальное строительство</label>
         <label class="ap-check"><input id="apInstaArmy" type="checkbox"> Моментальная армия</label>
+        <label class="ap-check"><input id="apFreeBuild" type="checkbox"> Строить без лимитов (кол-во, HQ, строители)</label>
         <div class="ap-sep"></div>
         <label>Gold <input id="apIce" type="number" value="200000"></label>
         <label>Oil <input id="apStone" type="number" value="200000"></label>
@@ -614,7 +615,7 @@ function labLevel(){return bestLevel("lab");}
 function labTier(){const l=labLevel();return l?BT.lab.lv[l].tier:1;}     // макс. уровень исследования
 function unlockLevelFor(troop){const u=UT[troop];return bestLevel(u.build);}
 function countType(t){let n=0;for(const b of S.buildings)if(b.type===t)n++;return n;}
-function limitFor(t){return HQ[S.hqLevel].lim[t]||0;}
+function limitFor(t){if(S.admin&&S.admin.freeBuild)return 99;return HQ[S.hqLevel].lim[t]||0;}
 function buildersUsed(){let n=0;for(const b of S.buildings)if(!b.built)n++;return n;}
 function buildersFree(){return BUILDERS-buildersUsed();}
 function inBounds(gx,gy,s){return gx>=0&&gy>=0&&gx+s<=GRID&&gy+s<=GRID;}
@@ -1541,11 +1542,11 @@ function canPlace(type,gx,gy){return areaFree(gx,gy,BT[type].size,null);}
 function placeNew(type,gx,gy){
   const d=BT[type],lv=d.lv[1];
   const bt=S.admin.instaBuild?0:lv.t;
-  if(S.hqLevel<d.hq){toast("Откроется с HQ ур."+d.hq);return false;}
+  if(!S.admin.freeBuild&&S.hqLevel<d.hq){toast("Откроется с HQ ур."+d.hq);return false;}
   if(!S.admin.infRes&&S.ice<lv.ice){toast("Не хватает Gold");return false;}
   if(countType(type)>=limitFor(type)){toast("Лимит для уровня штаба");return false;}
   if(type==="altar"&&S.hero){toast("Hero Altar уже есть");return false;}
-  if(bt>0&&buildersFree()<=0){toast("Все строители заняты");return false;}
+  if(bt>0&&!S.admin.freeBuild&&buildersFree()<=0){toast("Все строители заняты");return false;}
   if(!canPlace(type,gx,gy)){toast("Здесь не поставить");return false;}
   if(!S.admin.infRes)S.ice-=lv.ice;
   const b={type,gx,gy,level:1,hp:lv.hp,maxhp:lv.hp,built:bt<=0,buildEnd:0,_dur:bt,cd:0};
@@ -1563,7 +1564,7 @@ function startUpgrade(b){
   const u=upgradeCost(b);if(!u){toast("Максимальный уровень");return;}
   const ut=S.admin.instaBuild?0:u.t;
   if(!S.admin.infRes&&S.ice<u.ice){toast("Не хватает Gold");return;}
-  if(ut>0&&buildersFree()<=0){toast("Все строители заняты");return;}
+  if(ut>0&&!S.admin.freeBuild&&buildersFree()<=0){toast("Все строители заняты");return;}
   if(!S.admin.infRes)S.ice-=u.ice;
   b.built=ut<=0;b._dur=ut;b._upTo=u.level;
   if(ut>0)b.buildEnd=Date.now()+ut*1000;else applyLevel(b,u.level);
@@ -2408,16 +2409,16 @@ document.getElementById("mWar").onclick=()=>setMode("war");
 const CAT_TABS=[{key:"def",label:"Оборона"},{key:"eco",label:"Ресурсы"},{key:"army",label:"Армия"}];
 let catTab="def",catSel=null;
 const catEl=document.getElementById("catalog");
-function catBuildableCount(g){return BUILD_GROUPS[g].filter(t=>S.hqLevel>=BT[t].hq&&countType(t)<limitFor(t)).length;}
+function catBuildableCount(g){return BUILD_GROUPS[g].filter(t=>(S.admin.freeBuild||S.hqLevel>=BT[t].hq)&&countType(t)<limitFor(t)).length;}
 function openCatalog(){if(mode!=="build"){toast("Каталог доступен на базе");return;}catEl.classList.add("show");renderCatalog();}
 function closeCatalog(){catEl.classList.remove("show");}
 function renderCatalog(){
   const list=BUILD_GROUPS[catTab];
   if(!catSel||!list.includes(catSel))catSel=list[0];
-  const d=BT[catSel],lv=d.lv[1],cnt=countType(catSel),lim=limitFor(catSel),locked=S.hqLevel<d.hq,full=cnt>=lim;
+  const d=BT[catSel],lv=d.lv[1],cnt=countType(catSel),lim=limitFor(catSel),locked=!S.admin.freeBuild&&S.hqLevel<d.hq,full=cnt>=lim;
   const tabsH=CAT_TABS.map(t=>{const n=catBuildableCount(t.key);
     return `<div class="cat-tab ${t.key===catTab?'on':''}" data-tab="${t.key}">${t.label}${n?`<span class="bdg">${n}</span>`:""}</div>`;}).join("");
-  const thumbsH=list.map(t=>{const dd=BT[t],c=countType(t),l=limitFor(t),lk=S.hqLevel<dd.hq;
+  const thumbsH=list.map(t=>{const dd=BT[t],c=countType(t),l=limitFor(t),lk=!S.admin.freeBuild&&S.hqLevel<dd.hq;
     return `<div class="cat-th ${t===catSel?'on':''} ${lk?'locked':''}" data-pick="${t}">
       <div class="cnt">${c}/${l}</div>${lk?`<div class="lk">🔒</div>`:""}
       <img src="${ICN[t]}" alt=""><div class="nm">${dd.name}</div>
@@ -2480,11 +2481,12 @@ adminBtn.onclick=(e)=>{if(e){e.preventDefault();e.stopPropagation();}adminPanel.
 adminBtn.addEventListener("pointerdown",e=>e.stopPropagation()); // не отдаём клик карте
 document.getElementById("apClose").onclick=()=>adminPanel.classList.remove("show");
 document.getElementById("apSet").onclick=()=>{S.ice=+document.getElementById("apIce").value||0;S.stone=+document.getElementById("apStone").value||0;S.gem=+document.getElementById("apGem").value||0;save();refreshTop();renderSide();toast("Ресурсы выданы");};
-const apInfRes=document.getElementById("apInfRes"),apInstaBuild=document.getElementById("apInstaBuild"),apInstaArmy=document.getElementById("apInstaArmy");
-function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!S.admin.instaBuild;apInstaArmy.checked=!!S.admin.instaArmy;}
+const apInfRes=document.getElementById("apInfRes"),apInstaBuild=document.getElementById("apInstaBuild"),apInstaArmy=document.getElementById("apInstaArmy"),apFreeBuild=document.getElementById("apFreeBuild");
+function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!S.admin.instaBuild;apInstaArmy.checked=!!S.admin.instaArmy;apFreeBuild.checked=!!S.admin.freeBuild;}
 apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();renderSide();toast(apInfRes.checked?"Бесконечные ресурсы: вкл":"Бесконечные ресурсы: выкл");};
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
+apFreeBuild.onchange=()=>{S.admin.freeBuild=apFreeBuild.checked;save();renderSide();if(catEl.classList.contains("show"))renderCatalog();toast(apFreeBuild.checked?"Стройка без лимитов: вкл":"Стройка без лимитов: выкл");};
 /* ===== ЖИВАЯ ОСАДА своей базы (админ): враги атакуют, оборона стреляет, ты свободно строишь ===== */
 function siegeSnapshot(){if(!siege.hp0)siege.hp0=S.buildings.map(b=>({b:b,hp:b.hp,maxhp:b.maxhp}));}
 function mkRaider(type,gx,gy){let u;
