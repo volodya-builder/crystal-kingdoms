@@ -325,6 +325,7 @@
         <label class="ap-check"><input id="apInstaBuild" type="checkbox"> Моментальное строительство</label>
         <label class="ap-check"><input id="apInstaArmy" type="checkbox"> Моментальная армия</label>
         <label class="ap-check"><input id="apFreeBuild" type="checkbox"> Строить без лимитов (кол-во, HQ, строители)</label>
+        <label class="ap-check"><input id="apShowHp" type="checkbox"> Показывать HP юнитов числом</label>
         <div class="ap-sep"></div>
         <label>Gold <input id="apIce" type="number" value="200000"></label>
         <label>Oil <input id="apStone" type="number" value="200000"></label>
@@ -1380,7 +1381,12 @@ function drawUnit(u){
     else drawUnitSprite(u,cx,ty,r,_usp.img,UNIT_SPR_H[u.type]||4.0);
     if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
     if(u.hero){ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.moveTo(cx-3*ZOOM,ty-r*4.9);ctx.lineTo(cx,ty-r*5.5);ctx.lineTo(cx+3*ZOOM,ty-r*4.9);ctx.closePath();ctx.fill();}
-    if(u.hp<u.maxhp)drawBar(cx,ty-r*4.6,r*2.4,u.hp/u.maxhp,u.hero?"#caa9ff":"#5ce0a8","#3a1d1d");return;}
+    if(u.hp<u.maxhp)drawBar(cx,ty-r*4.6,r*2.4,u.hp/u.maxhp,u.hero?"#caa9ff":"#5ce0a8","#3a1d1d");
+    if(S.admin&&S.admin.showHp){ctx.save();ctx.font="700 "+Math.round(10*ZOOM)+"px system-ui";ctx.textAlign="center";
+      ctx.lineWidth=3*ZOOM;ctx.strokeStyle="rgba(6,12,26,.85)";ctx.lineJoin="round";
+      const _hpTxt=Math.max(0,Math.ceil(u.hp))+"";
+      ctx.strokeText(_hpTxt,cx,ty-r*5.0);ctx.fillStyle=u.hero?"#e2d2ff":"#c9f7e2";ctx.fillText(_hpTxt,cx,ty-r*5.0);ctx.restore();}
+    return;}
   const def=u.def;
   if(u.air){ctx.fillStyle=def.color;ctx.beginPath();ctx.moveTo(cx-r*1.4,cy);ctx.lineTo(cx+r*1.4,cy);ctx.lineTo(cx,cy-r*0.9);ctx.closePath();ctx.fill();
     ctx.fillRect(cx-r*0.4,cy-r*0.3,r*0.8,r*1.1);}
@@ -2481,12 +2487,13 @@ adminBtn.onclick=(e)=>{if(e){e.preventDefault();e.stopPropagation();}adminPanel.
 adminBtn.addEventListener("pointerdown",e=>e.stopPropagation()); // не отдаём клик карте
 document.getElementById("apClose").onclick=()=>adminPanel.classList.remove("show");
 document.getElementById("apSet").onclick=()=>{S.ice=+document.getElementById("apIce").value||0;S.stone=+document.getElementById("apStone").value||0;S.gem=+document.getElementById("apGem").value||0;save();refreshTop();renderSide();toast("Ресурсы выданы");};
-const apInfRes=document.getElementById("apInfRes"),apInstaBuild=document.getElementById("apInstaBuild"),apInstaArmy=document.getElementById("apInstaArmy"),apFreeBuild=document.getElementById("apFreeBuild");
-function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!S.admin.instaBuild;apInstaArmy.checked=!!S.admin.instaArmy;apFreeBuild.checked=!!S.admin.freeBuild;}
+const apInfRes=document.getElementById("apInfRes"),apInstaBuild=document.getElementById("apInstaBuild"),apInstaArmy=document.getElementById("apInstaArmy"),apFreeBuild=document.getElementById("apFreeBuild"),apShowHp=document.getElementById("apShowHp");
+function syncAdminUI(){apInfRes.checked=!!S.admin.infRes;apInstaBuild.checked=!!S.admin.instaBuild;apInstaArmy.checked=!!S.admin.instaArmy;apFreeBuild.checked=!!S.admin.freeBuild;apShowHp.checked=!!S.admin.showHp;}
 apInfRes.onchange=()=>{S.admin.infRes=apInfRes.checked;save();refreshTop();renderSide();toast(apInfRes.checked?"Бесконечные ресурсы: вкл":"Бесконечные ресурсы: выкл");};
 apInstaBuild.onchange=()=>{S.admin.instaBuild=apInstaBuild.checked;save();toast(apInstaBuild.checked?"Моментальное строительство: вкл":"Моментальное строительство: выкл");};
 apInstaArmy.onchange=()=>{S.admin.instaArmy=apInstaArmy.checked;save();toast(apInstaArmy.checked?"Моментальная армия: вкл":"Моментальная армия: выкл");};
 apFreeBuild.onchange=()=>{S.admin.freeBuild=apFreeBuild.checked;save();renderSide();if(catEl.classList.contains("show"))renderCatalog();toast(apFreeBuild.checked?"Стройка без лимитов: вкл":"Стройка без лимитов: выкл");};
+apShowHp.onchange=()=>{S.admin.showHp=apShowHp.checked;save();toast(apShowHp.checked?"HP юнитов числом: вкл":"HP юнитов числом: выкл");};
 /* ===== ЖИВАЯ ОСАДА своей базы (админ): враги атакуют, оборона стреляет, ты свободно строишь ===== */
 function siegeSnapshot(){if(!siege.hp0)siege.hp0=S.buildings.map(b=>({b:b,hp:b.hp,maxhp:b.maxhp}));}
 function mkRaider(type,gx,gy){let u;
