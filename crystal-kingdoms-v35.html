@@ -1191,8 +1191,8 @@ function drawBar(cx,topY,w,p,fg,bg){p=Math.max(0,Math.min(1,p));ctx.fillStyle=bg
 /* ===== РЫЦАРЬ (Brute) — спрайт с анимацией ===== */
 // ── Спрайты юнитов: ОДИН png на тип, анимируется кодом (шаг, наклон, выпад, разворот, парение) ──
 // положи в assets/: knight.png (Brute), striker.png, marine.png, blaze.png, skyfire.png, hero.png
-const UNIT_SPR_FILES={brute:"assets/knight.png?v=2",striker:"assets/maceman.png?v=1",marine:"assets/archer.png?v=1",blaze:"assets/mage.png?v=1",skyfire:"assets/balloon.png?v=1",hero:"assets/hero.png"};
-const UNIT_SPR_H={brute:4.4,striker:3.8,marine:3.9,blaze:4.1,skyfire:4.6,hero:4.8}; // высота спрайта в радиусах r
+const UNIT_SPR_FILES={brute:"assets/knight2.png?v=1",striker:"assets/maceman2.png?v=1",marine:"assets/archer2.png?v=1",blaze:"assets/mage2.png?v=1",skyfire:"assets/balloon2.png?v=1",hero:"assets/hero.png"};
+const UNIT_SPR_H={brute:4.6,striker:4.2,marine:4.3,blaze:4.3,skyfire:5.4,hero:4.8}; // высота спрайта в радиусах r
 const unitSpr={};
 for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};unitSpr[k]=rec;const im=new Image();
   im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;
@@ -1238,8 +1238,12 @@ function drawUnitSprite(u,cx,baseY,r,spr,hMul){
    (legTop) выше пояса (waist), поэтому когда корпус подпрыгивает — таз всё
    равно нарисован ногами. Все числа — доли исходной картинки (0..1), тюнятся. */
 const UNIT_RIG={
-  // brute (assets/knight.png): фигура центрирована, ноги с явным просветом ~0.455
-  brute:{x0:0.15,x1:0.82,y0:0.04,y1:0.965,waist:0.70,legTop:0.64,split:0.455,hipY:0.665,hipLX:0.42,hipRX:0.50,spd:9}
+  // армия v2 (кинематик-стиль): параметры посчитаны авто-примеркой по альфа-каналу
+  brute:{"x0":0.02,"x1":0.972,"y0":0.095,"y1":0.848,"waist":0.599,"legTop":0.546,"split":0.515,"hipY":0.607,"hipLX":0.439,"hipRX":0.592,"spd":9},
+  blaze:{"x0":0.057,"x1":0.837,"y0":0.09,"y1":0.859,"waist":0.644,"legTop":0.59,"split":0.502,"hipY":0.644,"hipLX":0.385,"hipRX":0.603,"spd":9},
+  marine:{"x0":0.127,"x1":0.777,"y0":0.084,"y1":0.885,"waist":0.621,"legTop":0.564,"split":0.511,"hipY":0.629,"hipLX":0.413,"hipRX":0.582,"spd":10},
+  striker:{"x0":0.018,"x1":0.944,"y0":0.091,"y1":0.853,"waist":0.609,"legTop":0.548,"split":0.481,"hipY":0.624,"hipLX":0.388,"hipRX":0.592,"spd":10},
+  skyfire:{"x0":0.182,"x1":0.895,"y0":0.055,"y1":0.892,"waist":0.641,"legTop":0.724,"split":0.538,"hipY":0.724,"hipLX":0.467,"hipRX":0.609,"spd":9}
 };
 function drawUnitRig(u,cx,baseY,r,rec,hMul,cfg){
   const spr=rec.img,iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
