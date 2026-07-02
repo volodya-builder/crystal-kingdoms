@@ -1201,31 +1201,58 @@ for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};uni
 let knightSpr=null; // совместимость
 /* ── ПОКАДРОВАЯ АНИМАЦИЯ (3D-скелет → кадры) ── лист приоритетнее рига; кадры выровнены по общему bbox */
 const UNIT_SHEETS={
-  marine:{src:"assets/anim_archer_walk.png?v=1",frames:8,fw:102,fh:192,fps:11}
+  marine:{walk:{src:"assets/anim_archer_walk.png?v=1",frames:8,fw:102,fh:192,fps:11}},
+  brute:{walk:{src:"assets/anim_knight_walk.png?v=1",frames:8,fw:145,fh:192,fps:10},
+         idle:{src:"assets/anim_knight_idle.png?v=1",frames:8,fw:182,fh:192,fps:8},
+         attack:{src:"assets/anim_knight_attack.png?v=1",frames:8,fw:220,fh:192,flip:1,scale:1.12},
+         death:{src:"assets/anim_knight_death.png?v=1",frames:8,fw:183,fh:192,dur:0.9}},
+  blaze:{walk:{src:"assets/anim_mage_walk.png?v=1",frames:8,fw:147,fh:192,fps:10}},
+  striker:{walk:{src:"assets/anim_maceman_walk.png?v=1",frames:8,fw:156,fh:192,fps:11}}
 };
 const unitSheet={};
-for(const k in UNIT_SHEETS){(function(k){const rec={img:null,ready:false};unitSheet[k]=rec;const im=new Image();
-  im.onload=function(){rec.img=im;rec.ready=true;};im.onerror=function(){};im.src=UNIT_SHEETS[k].src;})(k);}
-function drawUnitSheet(u,cx,baseY,r,cfg,rec,hMul){
-  const H=r*(hMul||4.3),W=H*(cfg.fw/cfg.fh),T=ANIM;
+for(const k in UNIT_SHEETS){unitSheet[k]={};for(const a in UNIT_SHEETS[k]){(function(k,a){
+  const rec={img:null,ready:false};unitSheet[k][a]=rec;const im=new Image();
+  im.onload=function(){rec.img=im;rec.ready=true;};im.onerror=function(){};im.src=UNIT_SHEETS[k][a].src;})(k,a);}}
+/* трупы: проигрываем анимацию смерти на месте гибели, затем растворяем */
+function drawCorpses(list){for(const c of (list||[])){
+  const rows=UNIT_SHEETS[c.type];if(!rows||!rows.death)continue;
+  const rec=(unitSheet[c.type]||{}).death;if(!rec||!rec.ready)continue;
+  const cfg=rows.death,p=iso(c.gx,c.gy),r=8*ZOOM;
+  const f=Math.min(cfg.frames-1,Math.floor(c.t/((cfg.dur||0.9)/cfg.frames)));
+  const H=r*(UNIT_SPR_H[c.type]||4.3)*(cfg.scale||1),W=H*(cfg.fw/cfg.fh);
+  ctx.save();ctx.globalAlpha=c.t<2.5?1:Math.max(0,1-(c.t-2.5)/1.2);
+  ctx.translate(p[0],p[1]);ctx.scale(c.face||1,1);
+  ctx.drawImage(rec.img,f*cfg.fw,0,cfg.fw,cfg.fh,-W/2,-H,W,H);
+  ctx.restore();ctx.globalAlpha=1;}}
+function tickCorpses(o,units,dt){
+  if(!o.corpses)o.corpses=[];
+  for(const u of units){if(u.hp<=0&&!u._corpse){u._corpse=1;
+    const rows=UNIT_SHEETS[u.type];if(rows&&rows.death)o.corpses.push({type:u.type,gx:u.gx,gy:u.gy,face:u._face||1,t:0});}}
+  for(const c of o.corpses)c.t+=dt;
+  o.corpses=o.corpses.filter(c=>c.t<4);
+}
+function drawUnitSheet(u,cx,baseY,r,rows,recs,hMul){
+  const T=ANIM;
   if(u._ph===undefined)u._ph=(u.gx+u.gy)*1.3;
   let face=u._face||1;
-  if(u.target){const s=BT[u.target.type].size,sdx=((u.target.gx+s/2)-u.gx)-((u.target.gy+s/2)-u.gy);
+  if(u.target){const s2=BT[u.target.type].size,sdx=((u.target.gx+s2/2)-u.gx)-((u.target.gy+s2/2)-u.gy);
     if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
-  const walking=u.moving&&!(u._atk>0),atk=u._atk||0;
-  let f=0,bob=0,lunge=0,swing=0,syU=1;
-  if(walking){f=Math.floor(T*cfg.fps+u._ph*2)%cfg.frames;if(f<0)f+=cfg.frames;}
-  else{const br=Math.sin(T*2.2+u._ph);bob=Math.max(0,br)*0.012;syU=1+0.02*br;}
-  if(atk>0){const q=1-atk;
-    swing=q<0.22?(q/0.22)*(-0.4):q<0.5?-0.4+((q-0.22)/0.28)*0.7:0.3*(1-(q-0.5)/0.5);
-    lunge=Math.sin(Math.min(1,q/0.6)*Math.PI)*0.10;}
+  const atk=u._atk||0,walking=u.moving&&!(atk>0);
+  let act=null,f=0,bob=0;
+  if(atk>0&&rows.attack&&recs.attack&&recs.attack.ready){act="attack";const q=1-atk;f=Math.min(rows.attack.frames-1,Math.floor(q*rows.attack.frames));}
+  else if(walking){act="walk";f=Math.floor(T*rows.walk.fps+u._ph*2)%rows.walk.frames;}
+  else if(rows.idle&&recs.idle&&recs.idle.ready){act="idle";f=Math.floor(T*rows.idle.fps+u._ph*2)%rows.idle.frames;}
+  else{act="walk";f=0;const br=Math.sin(T*2.2+u._ph);bob=Math.max(0,br)*0.012;}
+  const cfg=rows[act],rec=recs[act];
+  if(!cfg||!rec||!rec.ready)return false;
+  if(f<0)f+=cfg.frames;
+  const H=r*(hMul||4.3)*(cfg.scale||1),W=H*(cfg.fw/cfg.fh);
   ctx.save();
   ctx.translate(cx,baseY-bob*H);
-  ctx.scale(face,1);
-  if(atk>0){ctx.translate(lunge*W,0);const pvy=-H*0.52;ctx.translate(0,pvy);ctx.rotate(swing*0.55);ctx.translate(0,-pvy);}
-  if(syU!==1)ctx.scale(1,syU);
-  ctx.drawImage(rec.img, f*cfg.fw,0,cfg.fw,cfg.fh, -W/2,-H,W,H);
+  ctx.scale(face*(cfg.flip?-1:1),1);
+  ctx.drawImage(rec.img,f*cfg.fw,0,cfg.fw,cfg.fh,-W/2,-H,W,H);
   ctx.restore();
+  return true;
 }
 function drawUnitSprite(u,cx,baseY,r,spr,hMul){
   const iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
@@ -1327,7 +1354,9 @@ function drawUnit(u){
   const _usp=unitSpr[u.type];
   if(_usp&&_usp.ready&&_usp.img){const ty=cy0-fly;const _rig=UNIT_RIG[u.type];
     const _sh=unitSheet[u.type];
-    if(_sh&&_sh.ready&&_sh.img)drawUnitSheet(u,cx,ty,r,UNIT_SHEETS[u.type],_sh,UNIT_SPR_H[u.type]||4.3);
+    let _drawn=false;
+    if(_sh&&UNIT_SHEETS[u.type].walk&&_sh.walk&&_sh.walk.ready)_drawn=drawUnitSheet(u,cx,ty,r,UNIT_SHEETS[u.type],_sh,UNIT_SPR_H[u.type]||4.3);
+    if(_drawn){}
     else if(_rig)drawUnitRig(u,cx,ty,r,_usp,UNIT_SPR_H[u.type]||4.4,_rig);
     else drawUnitSprite(u,cx,ty,r,_usp.img,UNIT_SPR_H[u.type]||4.0);
     if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
@@ -1416,6 +1445,7 @@ function render(){
     if(siegeArm&&hoverTile&&hoverTile[0]>=0&&hoverTile[0]<=GRID&&hoverTile[1]>=0&&hoverTile[1]<=GRID)drawDeployMarker(hoverTile[0],hoverTile[1],false); // кружок-ориентир места высадки (без квадрата клетки)
   }else{
     setWalls(war.enemy);
+    drawCorpses(war.corpses);
     if(!war.over)for(const b of war.enemy){if(b.hp<=0||BT[b.type].role!=="def")continue; // зоны поражения обороны (бледно)
       drawRange(b.gx+1,b.gy+1,b.range,b.target==="air"?"120,200,255":"255,90,90",false);}
     const ents=[];
@@ -1905,6 +1935,9 @@ function hitFx(u,t,tsx){
     burst(tsx[0],tsx[1]-10*ZOOM,5,"rgba(255,220,140,.95)",{spd:60,life:0.3,size:2});addShake(3);}
   else if((u.type==="brute"||u.type==="hero")&&t.type==="wall"){ // танк: пыль и толчок по стене
     burst(tsx[0],tsx[1]-8*ZOOM,9,"rgba(195,175,150,.9)",{spd:85,life:0.5,size:3,grav:150});addShake(4);}
+  else if(u.type==="brute"||u.type==="hero"){ // меч: искры стали
+    burst(tsx[0],tsx[1]-10*ZOOM,7,"rgba(255,255,225,.95)",{spd:120,life:0.28,size:2});
+    burst(tsx[0],tsx[1]-9*ZOOM,4,"rgba(190,210,255,.9)",{spd:70,life:0.22,size:1.6});addShake(2);}
   else if(u.type==="skyfire"){ // авиабомба: голубая вспышка
     burst(tsx[0],tsx[1]-6*ZOOM,7,"rgba(160,220,255,.9)",{spd:75,life:0.36,size:2});}
 }
@@ -1945,6 +1978,7 @@ function updateWar(dt){
         if(Math.hypot(u.gx-z.gx,u.gy-z.gy)<=z.r)u._rageT=Math.max(u._rageT||0,0.35); } } }
     war.zones=war.zones.filter(z=>z.t>0);
   }
+  tickCorpses(war,war.units,dt);
   for(const u of war.units){
     if(u.hp<=0)continue;u._atk=Math.max(0,u._atk-dt*3);if(u._rageT)u._rageT=Math.max(0,u._rageT-dt);
     if(u._burn)u._burn=Math.max(0,u._burn-dt*0.6);   // огонь остывает, если враг вышел из пламени
@@ -2459,11 +2493,12 @@ function updateSiege(dt){
           if(d.burn){const m=1+Math.min(u._burn||0,4)*0.25;u.hp-=lv.dmg*m;u._burn=Math.min((u._burn||0)+1,4);}else u.hp-=lv.dmg;}}}
       else best.hp-=lv.dmg;}
   }
+  tickCorpses(siege,siege.units,dt);
   siege.shots=siege.shots.filter(s=>(s.life-=dt)>0);
   siege.blasts=siege.blasts.filter(b=>(b.life-=dt*1.6)>0);
   if(!siege.units.some(u=>u.hp>0)&&!siegeArm)endSiege(); // в режиме высадки по тапу не закрываемся — спавним дальше
 }
-function drawSiege(){ if(!siege.units.length)return;
+function drawSiege(){ drawCorpses(siege.corpses); if(!siege.units.length&&!(siege.corpses&&siege.corpses.length))return;
   for(const u of siege.units)if(u.hp>0)drawUnit(u);
   for(const sh of siege.shots){const[x1,y1]=iso(sh.x1,sh.y1),[x2,y2]=iso(sh.x2,sh.y2);
     ctx.strokeStyle=sh.col;ctx.lineWidth=2.2*ZOOM;ctx.beginPath();ctx.moveTo(x1,y1-(sh.fromAir?14*ZOOM:0));ctx.lineTo(x2,y2);ctx.stroke();}
