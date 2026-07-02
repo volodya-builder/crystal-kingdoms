@@ -1199,6 +1199,34 @@ for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};uni
     try{if(rec.img&&rec.img.toDataURL&&typeof ICN!=="undefined")ICN[k]=rec.img.toDataURL();}catch(e){}};
   im.onerror=function(){};im.src=UNIT_SPR_FILES[k];})(k);}
 let knightSpr=null; // совместимость
+/* ── ПОКАДРОВАЯ АНИМАЦИЯ (3D-скелет → кадры) ── лист приоритетнее рига; кадры выровнены по общему bbox */
+const UNIT_SHEETS={
+  marine:{src:"assets/anim_archer_walk.png?v=1",frames:8,fw:102,fh:192,fps:11}
+};
+const unitSheet={};
+for(const k in UNIT_SHEETS){(function(k){const rec={img:null,ready:false};unitSheet[k]=rec;const im=new Image();
+  im.onload=function(){rec.img=im;rec.ready=true;};im.onerror=function(){};im.src=UNIT_SHEETS[k].src;})(k);}
+function drawUnitSheet(u,cx,baseY,r,cfg,rec,hMul){
+  const H=r*(hMul||4.3),W=H*(cfg.fw/cfg.fh),T=ANIM;
+  if(u._ph===undefined)u._ph=(u.gx+u.gy)*1.3;
+  let face=u._face||1;
+  if(u.target){const s=BT[u.target.type].size,sdx=((u.target.gx+s/2)-u.gx)-((u.target.gy+s/2)-u.gy);
+    if(Math.abs(sdx)>0.05){face=sdx<0?-1:1;u._face=face;}}
+  const walking=u.moving&&!(u._atk>0),atk=u._atk||0;
+  let f=0,bob=0,lunge=0,swing=0,syU=1;
+  if(walking){f=Math.floor(T*cfg.fps+u._ph*2)%cfg.frames;if(f<0)f+=cfg.frames;}
+  else{const br=Math.sin(T*2.2+u._ph);bob=Math.max(0,br)*0.012;syU=1+0.02*br;}
+  if(atk>0){const q=1-atk;
+    swing=q<0.22?(q/0.22)*(-0.4):q<0.5?-0.4+((q-0.22)/0.28)*0.7:0.3*(1-(q-0.5)/0.5);
+    lunge=Math.sin(Math.min(1,q/0.6)*Math.PI)*0.10;}
+  ctx.save();
+  ctx.translate(cx,baseY-bob*H);
+  ctx.scale(face,1);
+  if(atk>0){ctx.translate(lunge*W,0);const pvy=-H*0.52;ctx.translate(0,pvy);ctx.rotate(swing*0.55);ctx.translate(0,-pvy);}
+  if(syU!==1)ctx.scale(1,syU);
+  ctx.drawImage(rec.img, f*cfg.fw,0,cfg.fw,cfg.fh, -W/2,-H,W,H);
+  ctx.restore();
+}
 function drawUnitSprite(u,cx,baseY,r,spr,hMul){
   const iw=spr.naturalWidth||spr.width,ih=spr.naturalHeight||spr.height;
   const H=r*(hMul||4.0),W=H*(iw/ih);
@@ -1298,7 +1326,9 @@ function drawUnit(u){
   ctx.fillStyle="rgba(4,10,22,.35)";ctx.beginPath();ctx.ellipse(cx,cy0,r*1.1,r*0.5,0,0,7);ctx.fill();
   const _usp=unitSpr[u.type];
   if(_usp&&_usp.ready&&_usp.img){const ty=cy0-fly;const _rig=UNIT_RIG[u.type];
-    if(_rig)drawUnitRig(u,cx,ty,r,_usp,UNIT_SPR_H[u.type]||4.4,_rig);
+    const _sh=unitSheet[u.type];
+    if(_sh&&_sh.ready&&_sh.img)drawUnitSheet(u,cx,ty,r,UNIT_SHEETS[u.type],_sh,UNIT_SPR_H[u.type]||4.3);
+    else if(_rig)drawUnitRig(u,cx,ty,r,_usp,UNIT_SPR_H[u.type]||4.4,_rig);
     else drawUnitSprite(u,cx,ty,r,_usp.img,UNIT_SPR_H[u.type]||4.0);
     if(u._atk>0){ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*ZOOM;ctx.beginPath();ctx.arc(cx,ty-r*2,r*1.6,0,Math.PI*2*u._atk);ctx.stroke();}
     if(u.hero){ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.moveTo(cx-3*ZOOM,ty-r*4.9);ctx.lineTo(cx,ty-r*5.5);ctx.lineTo(cx+3*ZOOM,ty-r*4.9);ctx.closePath();ctx.fill();}
