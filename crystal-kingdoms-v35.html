@@ -1201,18 +1201,18 @@ for(const k in UNIT_SPR_FILES){(function(k){const rec={img:null,ready:false};uni
 let knightSpr=null; // совместимость
 /* ── ПОКАДРОВАЯ АНИМАЦИЯ (3D-скелет → кадры) ── лист приоритетнее рига; кадры выровнены по общему bbox */
 const UNIT_SHEETS={
-  brute:{walk:{src:"assets/anim2_knight3_walk.png?v=1",frames:8,fw:215,fh:192,fps:10},
-         idle:{src:"assets/anim2_knight3_idle.png?v=1",frames:4,fw:215,fh:192,fps:7},
-         attack:{src:"assets/anim2_knight3_attack.png?v=1",frames:8,fw:215,fh:192},
-         death:{src:"assets/anim2_knight3_death.png?v=1",frames:8,fw:215,fh:192,dur:0.9}},
-  marine:{walk:{src:"assets/anim2_archer3_walk.png?v=1",frames:8,fw:142,fh:192,fps:11},
-         idle:{src:"assets/anim2_archer3_idle.png?v=1",frames:4,fw:142,fh:192,fps:7},
-         attack:{src:"assets/anim2_archer3_attack.png?v=1",frames:8,fw:142,fh:192},
-         death:{src:"assets/anim2_archer3_death.png?v=1",frames:8,fw:142,fh:192,dur:0.9}},
-  blaze:{walk:{src:"assets/anim2_mage3_walk.png?v=1",frames:8,fw:142,fh:192,fps:10},
-         idle:{src:"assets/anim2_mage3_idle.png?v=1",frames:4,fw:142,fh:192,fps:7},
-         attack:{src:"assets/anim2_mage3_attack.png?v=1",frames:8,fw:142,fh:192},
-         death:{src:"assets/anim2_mage3_death.png?v=1",frames:8,fw:142,fh:192,dur:0.9}},
+  brute:{walk:{src:"assets/anim2_knight3_walk.png?v=1",frames:8,fw:203,fh:192,fps:10,dy:0.0145},
+         idle:{src:"assets/anim2_knight3_idle.png?v=1",frames:4,fw:203,fh:192,fps:7,dy:0.0145},
+         attack:{src:"assets/anim2_knight3_attack.png?v=1",frames:8,fw:203,fh:192,dy:0.0145},
+         death:{src:"assets/anim2_knight3_death.png?v=1",frames:8,fw:203,fh:192,dur:0.9}},
+  marine:{walk:{src:"assets/anim2_archer3_walk.png?v=1",frames:8,fw:161,fh:192,fps:11,dy:0.1662},
+         idle:{src:"assets/anim2_archer3_idle.png?v=1",frames:4,fw:161,fh:192,fps:7,dy:0.1662},
+         attack:{src:"assets/anim2_archer3_attack.png?v=1",frames:8,fw:161,fh:192,dy:0.1662},
+         death:{src:"assets/anim2_archer3_death.png?v=1",frames:8,fw:161,fh:192,dur:0.9}},
+  blaze:{walk:{src:"assets/anim2_mage3_walk.png?v=1",frames:8,fw:141,fh:192,fps:10,dy:0.28},
+         idle:{src:"assets/anim2_mage3_idle.png?v=1",frames:4,fw:141,fh:192,fps:7,dy:0.28},
+         attack:{src:"assets/anim2_mage3_attack.png?v=1",frames:8,fw:141,fh:192,dy:0.28},
+         death:{src:"assets/anim2_mage3_death.png?v=1",frames:8,fw:141,fh:192,dur:0.9}},
   striker:{walk:{src:"assets/anim_maceman_walk.png?v=1",frames:8,fw:156,fh:192,fps:11}}
 };
 const unitSheet={};
@@ -1254,7 +1254,7 @@ function drawUnitSheet(u,cx,baseY,r,rows,recs,hMul){
   if(f<0)f+=cfg.frames;
   const H=r*(hMul||4.3)*(cfg.scale||1),W=H*(cfg.fw/cfg.fh);
   ctx.save();
-  ctx.translate(cx,baseY-bob*H);
+  ctx.translate(cx,baseY-bob*H+((cfg.dy||0)*H));
   ctx.scale(face*(cfg.flip?-1:1),1);
   ctx.drawImage(rec.img,f*cfg.fw,0,cfg.fw,cfg.fh,-W/2,-H,W,H);
   ctx.restore();
