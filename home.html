@@ -256,9 +256,9 @@ window.addEventListener("error",function(e){try{
 <!-- ТОКЕН -->
 <section class="section" id="token">
   <div class="wrap">
-    <div class="section-head reveal"><span class="eyebrow">Tokenomics · Devnet</span><h2>$CRYSTAL Token</h2><p>Fixed supply: 100M $CRYSTAL on Solana. Earned in battles, swapped to Ruby in-game. Team allocation is vested, liquidity is locked at launch. Live on Devnet; final terms at mainnet TGE.</p></div>
+    <div class="section-head reveal"><span class="eyebrow">Tokenomics · Devnet</span><h2><img src="assets/crystal-coin.png" style="width:38px;height:38px;vertical-align:-7px;border-radius:8px"> $CRYSTAL Token</h2><p>Fixed supply: 1,000,000,000 $CRYSTAL on Solana — the mint authority is burned on-chain, so the 1B cap can physically never be exceeded. Earned in battles, swapped to Ruby in-game. Live on Devnet; final terms at mainnet TGE.</p></div>
     <div class="tok reveal">
-      <div class="donut-wrap"><div class="donut"></div><div class="donut-c"><b>100M</b><span>$CRYSTAL</span></div></div>
+      <div class="donut-wrap"><div class="donut"></div><div class="donut-c"><img src="assets/crystal-coin.png" style="width:46px;display:block;margin:0 auto 2px"><b>1B</b><span>$CRYSTAL · hard cap</span></div></div>
       <div>
         <div class="legend">
           <div class="li"><span class="sw" style="background:var(--gold)"></span> Play-to-Earn Rewards<span class="pct">40%</span></div>
@@ -306,7 +306,7 @@ window.addEventListener("error",function(e){try{
   <div class="wrap">
     <div class="foot">
       <a href="#top" aria-label="Crystal Kingdoms"><span class="logoimg" style="width:113px;height:40px"></span></a>
-      <div class="foot-links"><a href="#play">Игра</a><a href="#heroes">Герои</a><a href="#token">Токен</a><a href="#road">Дорожная карта</a><a href="dev-wallet.html">Dev-кошелёк</a><a href="https://explorer.solana.com/address/DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7?cluster=devnet" target="_blank" rel="noopener">$CRYSTAL в Explorer</a></div>
+      <div class="foot-links"><a href="#play">Игра</a><a href="#heroes">Герои</a><a href="#token">Токен</a><a href="#road">Дорожная карта</a><a href="dev-wallet.html">Dev-кошелёк</a><a href="https://explorer.solana.com/address/3LHqDgj5jbJp7SEaT3G43gs24GR3w1zy8znNQLxtHFMd?cluster=devnet" target="_blank" rel="noopener">$CRYSTAL в Explorer</a></div>
     </div>
     <p class="disclaimer">⚠ $CRYSTAL — тестовый токен, выпущенный в Solana <b>Devnet</b> (тестовая сеть): реальной цены не имеет, за деньги не покупается и не продаётся. Подключение кошелька показывает адрес и балансы; обмен Ruby ↔ $CRYSTAL доступен внутри игры. Это не финансовый совет и не предложение инвестиций. Запуск в основной сети потребует аудита смарт-контракта и юридической проверки в вашей юрисдикции.</p>
   </div>
@@ -327,7 +327,7 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape")closeGame();
 
 /* Кошелёк: Solana / Phantom — реальный токен $CRYSTAL (devnet). Весь код в IIFE: расширение Phantom вживляет неизменяемый window.phantom, и глобальная function getPhantom() ломала весь скрипт страницы. */
 (function(){
-var MINT="DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7";
+var MINT="3LHqDgj5jbJp7SEaT3G43gs24GR3w1zy8znNQLxtHFMd";
 var SOL_RPC="https://api.devnet.solana.com";
 var account=null, w3=null;
 function short(a){return a.slice(0,4)+"…"+a.slice(-4);}

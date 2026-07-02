@@ -10,9 +10,10 @@
     "server": "node bridge-server.js"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.95.3",
+    "@metaplex-foundation/mpl-token-metadata": "^2.13.0",
     "@solana/spl-token": "^0.4.8",
-    "express": "^4.19.2",
-    "cors": "^2.8.5"
+    "@solana/web3.js": "^1.95.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
   }
 }

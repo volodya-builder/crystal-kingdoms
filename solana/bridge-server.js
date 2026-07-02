@@ -22,7 +22,7 @@ const {
   Connection, Keypair, PublicKey, clusterApiUrl,
 } = require("@solana/web3.js");
 const {
-  getOrCreateAssociatedTokenAccount, mintTo, getAccount, getAssociatedTokenAddress,
+  getOrCreateAssociatedTokenAccount, transfer, getAccount, getAssociatedTokenAddress,
 } = require("@solana/spl-token");
 
 const RATE = 1;            // 1 Ruby = 1 $CRYSTAL (тестовый курс)
@@ -54,15 +54,16 @@ app.get("/balance/:wallet", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// Ruby → $CRYSTAL : минтим токены игроку
+// Ruby → $CRYSTAL : ПЕРЕВОД из казны (чеканка сожжена — новые монеты создать нельзя, hard cap 1B)
 app.post("/withdraw", async (req, res) => {
   try {
     const { wallet, ruby } = req.body;
     const amt = Math.floor(Number(ruby));
     if (!wallet || !amt || amt <= 0) return res.status(400).json({ error: "bad params" });
     const owner = new PublicKey(wallet);
+    const tAta = await getOrCreateAssociatedTokenAccount(conn, treasury, MINT, treasury.publicKey);
     const ata = await getOrCreateAssociatedTokenAccount(conn, treasury, MINT, owner);
-    const sig = await mintTo(conn, treasury, MINT, ata.address, treasury, BigInt(amt * RATE) * UNIT);
+    const sig = await transfer(conn, treasury, tAta.address, ata.address, treasury, BigInt(amt * RATE) * UNIT);
     res.json({ ok: true, sig, crystal: amt * RATE });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -2570,7 +2570,7 @@ init();
 /* НАСТРОЙ ПОСЛЕ solana/create-token.js: вставь свои MINT и TREASURY (выведутся в консоли),
    и адрес мост-сервера (по умолчанию локальный). */
 const CFG = {
-  MINT:     "DzbY1jramXGDgjDhCSPZArYyUqwHioTJWeWfGFVBJWT7", // токен $CRYSTAL (devnet)
+  MINT:     "3LHqDgj5jbJp7SEaT3G43gs24GR3w1zy8znNQLxtHFMd", // токен $CRYSTAL (devnet)
   TREASURY: "8B9Q3jMWSKa66zb8msGrCL8SiX9nq65z1rrb1ai94oPf", // казна игры (devnet)
   DECIMALS: 9,
   BRIDGE:   "http://localhost:8787" // ← где запущен bridge-server.js
@@ -2618,10 +2618,10 @@ async function withdraw(amount){ // Ruby → $CRYSTAL
     else { window.CKgame.addRuby(amount); alert("Ошибка моста: "+(r.error||"")); } }
   catch(e){ window.CKgame.addRuby(amount); alert("Мост недоступен (запусти bridge-server.js): "+(e.message||e)); } }
 function render(){
-  if(!configured){ panel.innerHTML='<div class="wp-box"><h2>💎 $CRYSTAL</h2><div class="wp-sub">Токен ещё не настроен</div><div class="wp-note">Запусти <b>solana/create-token.js</b>, затем вставь MINT и TREASURY в блок CFG в конце HTML. Подробно — в <b>solana/README.md</b>.</div><button class="wp-x" id="wpClose">Закрыть</button></div>';
+  if(!configured){ panel.innerHTML='<div class="wp-box"><h2><img src="assets/crystal-coin.png" style="width:22px;height:22px;vertical-align:-4px;border-radius:6px"> $CRYSTAL</h2><div class="wp-sub">Токен ещё не настроен</div><div class="wp-note">Запусти <b>solana/create-token.js</b>, затем вставь MINT и TREASURY в блок CFG в конце HTML. Подробно — в <b>solana/README.md</b>.</div><button class="wp-x" id="wpClose">Закрыть</button></div>';
     document.getElementById("wpClose").onclick=()=>panel.classList.remove("show"); return; }
   const connected=!!pubkey;
-  panel.innerHTML='<div class="wp-box"><h2>💎 $CRYSTAL</h2><div class="wp-sub">Solana Devnet · тестовый токен</div>'+
+  panel.innerHTML='<div class="wp-box"><h2><img src="assets/crystal-coin.png" style="width:22px;height:22px;vertical-align:-4px;border-radius:6px"> $CRYSTAL</h2><div class="wp-sub">Solana Devnet · тестовый токен</div>'+
     (connected
       ? '<div class="wp-bal"><b>'+bal.toLocaleString()+'</b><small>$CRYSTAL · '+short(pubkey.toString())+'</small></div>'+
         '<div class="wp-sub">Ruby → $CRYSTAL (вывод)</div><div class="wp-row"><input id="wpW" type="number" min="1" placeholder="сколько Ruby"><button class="wp-btn" id="wpWbtn">Вывести</button></div>'+
