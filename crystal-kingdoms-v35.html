@@ -986,25 +986,56 @@ function drawPumpBeam(b,cen,W,H,bottomY){
 }
 // ── Вращающаяся башня пушки: основание (твой спрайт) статично, поверх — кадр башни, повёрнутый к цели ──
 // 16 ракурсов запечены из 3D твоей же башни. Лист 4×4, кадр 256px.
-const turretSheet={img:null,ready:false};
-// вращающаяся башня ОТКЛЮЧЕНА (пушка возвращена к статичному спрайту по просьбе). Лист не грузим. Чтобы вернуть — раскомментировать загрузку и переименовать ключ _cannon_off → cannon ниже.
-// (function(){const im=new Image();im.onload=function(){turretSheet.img=im;turretSheet.ready=true;};im.onerror=function(){};im.src="assets/generated/cannon_turret_sheet.png?v=1";})();
+const turretSheet={img:null,ready:false}; // (совместимость со старым кодом)
+// Поворотная башня пушки: 16 ракурсов (4×4×256) запечены из 3D твоих же скинов. Два тира.
+const turretSheets={
+  b:{img:null,ready:false,src:"assets/generated/turret_b_sheet.png?v=1"},  // ур.3-9 (синяя сталь)
+  c:{img:null,ready:false,src:"assets/generated/turret_c_sheet.png?v=1"}   // ур.10 (золото)
+};
+for(const k in turretSheets){(function(rec){const im=new Image();im.onload=function(){rec.img=im;rec.ready=true;};im.onerror=function(){};im.src=rec.src;})(turretSheets[k]);}
+// базы пушки без нарисованного ствола (ур.3-10) — нарисованный купол всегда накрыт 3D-башней
+const SPRITE_LEVEL_FILES_NB={cannon:Array.from({length:10},function(_,i){return i>=2?("assets/cannon_noball_lv"+(i+1)+".png?v=1"):null;})};
+const SPRITES_LVB={};
+for(const k in SPRITE_LEVEL_FILES_NB){SPRITES_LVB[k]=SPRITE_LEVEL_FILES_NB[k].map(function(src){
+  if(!src)return null;
+  const c=SPRITE_FILE_CFG[k]||{scale:1.0,base:0.95,dy:0};
+  const rec={img:null,scale:c.scale,base:c.base,dy:c.dy,src:src,ready:false};
+  const im=new Image();
+  im.onload=function(){try{rec.img=keyOutWhite(im);}catch(e){rec.img=im;}rec.ready=true;};
+  im.onerror=function(){};im.src=src;return rec;});}
 const TURRET_RIG={
-  _cannon_off:{frames:16,cols:4,fpx:256,
-    scale:1.569,            // ширина кадра башни / ширина нарисованного основания(hex)
-    ringX:0.501,ringY:0.169,// центр кольца в долях нарисованного основания
-    mountX:0.5,mountY:0.64, // точка крепления внутри кадра башни
-    angOffset:90,dir:1,     // калибровка наведения (угол→кадр); подстроим по факту
-    restFrame:0,            // кадр в покое (нет цели)
-    recoil:7,barrelLen:0.30 // отдача (px*ZOOM) и вынос вспышки вдоль ствола (доли ширины башни)
+  cannon:{frames:16,cols:4,fpx:256,
+    scale:1.45,             // ширина кадра башни / ширина нарисованного основания
+    ringX:0.515,ringY:0.756,// якорь (центр-низ платформы башни) в долях основания
+    mountX:0.5,mountY:0.867,// та же точка внутри кадра башни (ось X центрована при сборке листа)
+    minLevel:3,             // ур.1-2 — деревянная пушка без поворота; башня появляется с ур.3
+    // канвас-угол ствола каждого кадра (изо-проекция мировых поворотов 22.5°·i, φ0=187°)
+    angles:[-156.1,-168.4,179.9,165.6,143.7,106.9,66,39.9,23.9,11.6,-0.1,-14.4,-36.3,-73.1,-114,-140.1],
+    restFrame:0,
+    recoil:7,barrelLen:0.42 // отдача (px*ZOOM) и вынос вспышки вдоль ствола (доли ширины башни)
   }
 };
+// активна ли поворотная башня у здания: нужен риг, уровень и загруженные лист+база-без-ствола
+function turretActive(b){
+  const rig=TURRET_RIG[b.type];if(!rig||b.built===false)return null;
+  const lv=b.level||1;if(lv<(rig.minLevel||1))return null;
+  const ts=lv>=10?turretSheets.c:turretSheets.b;
+  const bA=SPRITES_LVB[b.type],bs=bA&&bA[Math.max(0,Math.min(lv,bA.length)-1)];
+  if(ts&&ts.ready&&ts.img&&bs&&bs.ready&&bs.img)return {rig:rig,ts:ts,bs:bs};
+  return null;
+}
 // какой кадр башни смотрит на цель t из здания b (или restFrame)
 function turretFrameFor(b,rig,cen){
   if((mode==="war"||siege.units.length>0)&&b._tgt&&b._tgt.hp>0){
     const ts=iso(b._tgt.gx,b._tgt.gy),a=Math.atan2(ts[1]-cen[1],ts[0]-cen[0])*180/Math.PI;
+    b._aimA=a;
+    if(rig.angles){ // точная таблица: кадр с ближайшим канвас-углом ствола
+      let bf=0,bd=1e9;
+      for(let i=0;i<rig.frames;i++){let dd=Math.abs(a-rig.angles[i]);if(dd>180)dd=360-dd;if(dd<bd){bd=dd;bf=i;}}
+      return bf;
+    }
     let f=Math.round((a*rig.dir+rig.angOffset)/(360/rig.frames));
-    b._aimA=a; return ((f%rig.frames)+rig.frames)%rig.frames;
+    return ((f%rig.frames)+rig.frames)%rig.frames;
   }
   // покой: медленный «обзор» — башня плавно водит стволом, чтобы было видно, что она живая (фаза зависит от позиции — башни не синхронны)
   b._aimA=null;
@@ -1025,7 +1056,7 @@ function drawSpriteBuilding(b,spr){
   const flip=(b.type==="wall")?wallFlip(b):b.flip;
   ctx.globalAlpha=b.built===false?0.7:1;
   // отдача турели при выстреле: кадр спрайта «кикает» назад и слегка сжимается, затем садится (0.28с)
-  let _rc=0; if(b.built&&BT[b.type].role==="def"&&!TURRET_RIG[b.type]){const el=ANIM-(b._recoilAt||-9);if(el>=0&&el<0.28){const k=1-el/0.28;_rc=k*k;}}
+  let _rc=0; if(b.built&&BT[b.type].role==="def"&&!turretActive(b)){const el=ANIM-(b._recoilAt||-9);if(el>=0&&el<0.28){const k=1-el/0.28;_rc=k*k;}}
   ctx.save();
   if(_rc>0){ctx.translate(5*ZOOM*_rc,-3.5*ZOOM*_rc);const sc=1-0.05*_rc;ctx.translate(cen[0],bottomY);ctx.scale(sc,sc);ctx.translate(-cen[0],-bottomY);}
   if(flip){ctx.translate(cen[0]*2,0);ctx.scale(-1,1);ctx.drawImage(img,cen[0]-W/2,bottomY-H,W,H);}
@@ -1043,15 +1074,15 @@ function drawSpriteBuilding(b,spr){
   if(b.type==="stonepump"&&b.built!==false)drawPumpBeam(b,cen,W,H,bottomY); // анимированная балка качалки
   if(b.built!==false)spriteFX(b,cen[0],bottomY-H,W,H);
   // вращающаяся башня (риг: пушка) — поверх статичного основания, наводится на цель + отдача вдоль ствола
-  {const rig=TURRET_RIG[b.type];
-   if(rig&&turretSheet.ready&&turretSheet.img&&b.built){
+  {const _ta=turretActive(b);
+   if(_ta){const rig=_ta.rig;
      const f=turretFrameFor(b,rig,cen);
      const TW_=rig.scale*W, ringSx=cen[0]+(rig.ringX-0.5)*W, ringSy=bottomY-H+rig.ringY*H;
      let kx=0,ky=0,fl=0; const el=ANIM-(b._recoilAt||-9);
      if(el>=0&&el<0.28){const k=1-el/0.28,rc=k*k,ad=(b._aimA!=null?b._aimA*Math.PI/180:-2.2);kx=-Math.cos(ad)*rig.recoil*ZOOM*rc;ky=-Math.sin(ad)*rig.recoil*ZOOM*rc;fl=rc;}
      const sx=(f%rig.cols)*rig.fpx, sy=((f/rig.cols)|0)*rig.fpx;
-     ctx.drawImage(turretSheet.img, sx,sy,rig.fpx,rig.fpx, ringSx-rig.mountX*TW_+kx, ringSy-rig.mountY*TW_+ky, TW_,TW_);
-     if(fl>0.55&&b._aimA!=null){const fa=(fl-0.55)/0.45,a=b._aimA*Math.PI/180,mx=ringSx+Math.cos(a)*rig.barrelLen*TW_,my=ringSy+Math.sin(a)*rig.barrelLen*TW_-TW_*0.12;
+     ctx.drawImage(_ta.ts.img, sx,sy,rig.fpx,rig.fpx, ringSx-rig.mountX*TW_+kx, ringSy-rig.mountY*TW_+ky, TW_,TW_);
+     if(fl>0.55&&b._aimA!=null){const fa=(fl-0.55)/0.45,a=b._aimA*Math.PI/180,mx=ringSx+Math.cos(a)*rig.barrelLen*TW_,my=ringSy+Math.sin(a)*rig.barrelLen*TW_-TW_*0.38;
        ctx.save();ctx.globalCompositeOperation="lighter";const g=ctx.createRadialGradient(mx,my,0,mx,my,TW_*0.16);g.addColorStop(0,"rgba(255,242,190,"+(0.9*fa)+")");g.addColorStop(0.45,"rgba(255,170,70,"+(0.5*fa)+")");g.addColorStop(1,"rgba(255,120,40,0)");ctx.fillStyle=g;ctx.beginPath();ctx.arc(mx,my,TW_*0.16,0,7);ctx.fill();ctx.restore();}
    }}
   if(b.built&&b.type!=="wall"){const by=cen[1]+s*TH*ZOOM*0.5+9*ZOOM;
@@ -1139,6 +1170,7 @@ function drawBuilding(b){
   {let _sp=SPRITES[b.type];
    const _lvA=SPRITES_LV[b.type];
    if(_lvA){const _ls=_lvA[Math.max(0,Math.min(b.level||1,_lvA.length)-1)];if(_ls&&_ls.ready&&_ls.img)_sp=_ls;}
+   {const _ta=turretActive(b);if(_ta)_sp=_ta.bs;} // поворотная башня рисуется поверх — база без ствола
    if(_sp&&_sp.img&&(_sp.ready||(_sp.img.complete&&_sp.img.naturalWidth))){drawSpriteBuilding(b,_sp);return;}}
   const d=BT[b.type],s=d.size,[cx,cy]=iso(b.gx+s/2,b.gy+s/2);
   const wpx=s*TW*ZOOM*0.92,baseH=(s===1?14:(b.type==="hq"?40:26))*ZOOM,col=BCOL[b.type],w=wpx,h=wpx*0.5;
